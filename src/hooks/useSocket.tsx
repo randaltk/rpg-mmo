@@ -10,7 +10,6 @@ interface SocketContextType {
   chatMessages: ChatMessage[];
   currentMap: Map | null;
   monsters: Monster[];
-  combatEvents: CombatEvent[];
   targetMonsterId: string | null;
   joinGame: (nickname: string) => void;
   movePlayer: (position: MovementData) => void;
@@ -36,7 +35,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentMap, setCurrentMap] = useState<Map | null>(null);
   const [monsters, setMonsters] = useState<Monster[]>([]);
-  const [combatEvents, setCombatEvents] = useState<CombatEvent[]>([]);
+  
   const [targetMonsterId, setTargetMonsterId] = useState<string | null>(null);
   const attackCooldownRef = useRef(false);
 
@@ -126,15 +125,32 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on('monstersUpdate', (monsterList: Monster[]) => {
-      setMonsters(monsterList);
       (window as any).__monstersData = monsterList;
+
+      setMonsters(prev => {
+        if (prev.length !== monsterList.length) return monsterList;
+        for (let i = 0; i < prev.length; i++) {
+          const p = prev[i], n = monsterList[i];
+          if (p.id !== n.id || p.hp !== n.hp || p.state !== n.state ||
+              p.level !== n.level || p.targetPlayerId !== n.targetPlayerId) {
+            return monsterList;
+          }
+        }
+        return prev;
+      });
     });
 
     newSocket.on('combatEvent', (event: CombatEvent) => {
-      setCombatEvents(prev => [...prev, event]);
-      setTimeout(() => {
-        setCombatEvents(prev => prev.filter(e => e !== event));
-      }, 1500);
+      if (!((window as any).__combatEventsArr)) {
+        (window as any).__combatEventsArr = [];
+      }
+      (window as any).__combatEventsArr.push({ ...event, _spawnTime: performance.now() });
+
+      if (event.type === 'playerAttack') {
+        if (!(window as any).__attackingPlayers) (window as any).__attackingPlayers = new Set();
+        (window as any).__attackingPlayers.add(event.attackerId);
+        setTimeout(() => (window as any).__attackingPlayers?.delete(event.attackerId), 400);
+      }
     });
 
     newSocket.on('playerUpdated', (player: Player) => {
@@ -210,7 +226,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
   const value = {
     socket, isConnected, players, currentPlayer, chatMessages, currentMap,
-    monsters, combatEvents, targetMonsterId,
+    monsters, targetMonsterId,
     joinGame, movePlayer, emitMove, sendChatMessage, interact, equipItem, attackMonster, setTargetMonsterId,
   };
 

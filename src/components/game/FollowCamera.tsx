@@ -75,6 +75,9 @@ export default function FollowCamera({ target }: FollowCameraProps) {
     };
   }, [gl]);
 
+  const _desiredPos = useRef(new THREE.Vector3());
+  const _desiredLook = useRef(new THREE.Vector3());
+
   useFrame((_, delta) => {
     const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
     const tx = localPos?.x ?? target.x;
@@ -85,18 +88,18 @@ export default function FollowCamera({ target }: FollowCameraProps) {
     const p = pitch.current;
     const y = yaw.current;
 
-    const desiredPos = new THREE.Vector3(
+    _desiredPos.current.set(
       tx + d * Math.sin(y) * Math.cos(p),
       ty + d * Math.sin(p),
       tz + d * Math.cos(y) * Math.cos(p)
     );
 
     const lerpFactor = 1 - Math.pow(0.02, delta);
-    smoothPos.current.lerp(desiredPos, lerpFactor);
+    smoothPos.current.lerp(_desiredPos.current, lerpFactor);
     camera.position.copy(smoothPos.current);
 
-    const desiredLook = new THREE.Vector3(tx, ty + 1, tz);
-    lookTarget.current.lerp(desiredLook, lerpFactor);
+    _desiredLook.current.set(tx, ty + 1, tz);
+    lookTarget.current.lerp(_desiredLook.current, lerpFactor);
     camera.lookAt(lookTarget.current);
   });
 

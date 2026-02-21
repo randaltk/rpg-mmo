@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useEffect, useState } from "react";
+import React, { useRef, useMemo, useCallback, useEffect, useState, memo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Stars, Sphere } from "@react-three/drei";
 import { useSocket } from "@/hooks/useSocket";
@@ -13,7 +13,31 @@ import FloatingParticles from "./FloatingParticles";
 import MapSystem from "../MapSystem";
 import * as THREE from "three";
 
-function SkyDome({ isCave }: { isCave: boolean }) {
+const perfLog = {
+  renderCount: 0,
+  lastLogTime: 0,
+  frameTimes: [] as number[],
+  reasons: {} as Record<string, number>,
+  log(reason: string) {
+    this.reasons[reason] = (this.reasons[reason] || 0) + 1;
+  },
+  tick() {
+    this.renderCount++;
+    this.frameTimes.push(performance.now());
+    const now = performance.now();
+    if (now - this.lastLogTime > 3000) {
+      this.lastLogTime = now;
+      const recent = this.frameTimes.filter(t => now - t < 3000);
+      this.frameTimes = recent;
+      const fps = recent.length / 3;
+      console.log(`[PERF] Renders/3s: ${this.renderCount} | ~FPS(render): ${fps.toFixed(1)} | Reasons:`, { ...this.reasons });
+      this.renderCount = 0;
+      this.reasons = {};
+    }
+  },
+};
+
+const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
   const matRef = useRef<THREE.ShaderMaterial>(null);
 
   const uniforms = useMemo(() => ({
@@ -63,9 +87,9 @@ function SkyDome({ isCave }: { isCave: boolean }) {
       />
     </mesh>
   );
-}
+});
 
-function Sun() {
+const Sun = memo(function Sun() {
   const sunRef = useRef<THREE.Mesh>(null);
 
   return (
@@ -81,9 +105,9 @@ function Sun() {
       <pointLight color="#FFF0D0" intensity={0.6} distance={200} />
     </group>
   );
-}
+});
 
-function Clouds() {
+const Clouds = memo(function Clouds() {
   const cloudsData = useMemo(() => {
     const data = [];
     for (let i = 0; i < 6; i++) {
@@ -119,122 +143,11 @@ function Clouds() {
       ))}
     </group>
   );
-}
+});
 
-interface GameSceneProps {
-  inventoryOpen: boolean;
-  onInventoryToggle: () => void;
-  interactionMessage: string | null;
-  onInteractionMessage: (message: string | null) => void;
-}
-
-function CombatController() {
-  const { monsters, targetMonsterId, attackMonster } = useSocket();
-  const monstersRef = useRef(monsters);
-  monstersRef.current = monsters;
-  const attackRef = useRef(attackMonster);
-  attackRef.current = attackMonster;
-
-  useEffect(() => {
-    if (!targetMonsterId) {
-      (window as any).__combatTarget = null;
-      return;
-    }
-
-    const monster = monstersRef.current.find(m => m.id === targetMonsterId);
-    if (!monster || monster.state === "dead") {
-      (window as any).__combatTarget = null;
-      return;
-    }
-
-    (window as any).__combatTarget = { id: targetMonsterId };
-
-    const attackInterval = setInterval(() => {
-      const tid = targetMonsterId;
-      const m = monstersRef.current.find(m => m.id === tid);
-      if (!m || m.state === "dead") return;
-
-      const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
-      if (!localPos) return;
-
-      const dist = Math.sqrt((localPos.x - m.x) ** 2 + (localPos.z - m.z) ** 2);
-      if (dist <= 2.5) {
-        attackRef.current(tid);
-      }
-    }, 700);
-
-    return () => {
-      clearInterval(attackInterval);
-      (window as any).__combatTarget = null;
-    };
-  }, [targetMonsterId]);
-
-  return null;
-}
-
-export default function GameScene({
-  inventoryOpen,
-  onInventoryToggle,
-  interactionMessage,
-  onInteractionMessage,
-}: GameSceneProps) {
-  const { players, currentPlayer, movePlayer, emitMove, monsters, combatEvents, targetMonsterId, setTargetMonsterId, attackMonster } = useSocket();
-  const [attackingPlayers, setAttackingPlayers] = useState<Record<string, boolean>>({});
-
-  const { currentMap } = useGameControls({
-    currentPlayer,
-    movePlayer,
-    emitMove,
-    onInventoryToggle,
-    onInteractionMessage,
-  });
-
-  useEffect(() => {
-    for (const event of combatEvents) {
-      if (event.type === "playerAttack") {
-        setAttackingPlayers(prev => ({ ...prev, [event.attackerId]: true }));
-        setTimeout(() => {
-          setAttackingPlayers(prev => ({ ...prev, [event.attackerId]: false }));
-        }, 400);
-      }
-    }
-  }, [combatEvents]);
-
-  useEffect(() => {
-    if (targetMonsterId) {
-      const monster = monsters.find(m => m.id === targetMonsterId);
-      if (!monster || monster.state === "dead") {
-        setTargetMonsterId(null);
-      }
-    }
-  }, [monsters, targetMonsterId, setTargetMonsterId]);
-
-  const handleMonsterClick = useCallback((monsterId: string) => {
-    setTargetMonsterId(monsterId);
-  }, [setTargetMonsterId]);
-
-  useEffect(() => {
-    (window as any).__clearTarget = () => setTargetMonsterId(null);
-    return () => { delete (window as any).__clearTarget; };
-  }, [setTargetMonsterId]);
-
-  const isCave = currentMap.id === "cave";
-  const isCastle = currentMap.id === "castle";
-  const isTown = currentMap.id === "town";
-  const isIndoor = isCave || isCastle;
-
-  const cameraTarget = currentPlayer
-    ? { x: currentPlayer.x, y: currentPlayer.y, z: currentPlayer.z }
-    : { x: 0, y: 0, z: 0 };
-
-  const targetMonster = targetMonsterId ? monsters.find(m => m.id === targetMonsterId) : null;
-  const targetPos = targetMonster ? { x: targetMonster.x, z: targetMonster.z } : null;
-
+const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTown, isIndoor }: { isCave: boolean; isCastle: boolean; isTown: boolean; isIndoor: boolean }) {
   return (
     <>
-      <FollowCamera target={cameraTarget} />
-      <CombatController />
-
       {!isCastle && <SkyDome isCave={isCave} />}
 
       {isTown && (
@@ -309,18 +222,162 @@ export default function GameScene({
       />
 
       <FloatingParticles isCave={isIndoor} />
+    </>
+  );
+});
 
-      <MapSystem
-        currentMap={currentMap}
-        onPlayerMove={(x: number, y: number, z: number) => {
-          const canMove = (window as any).checkCollision(x, y, z);
-          if (canMove) {
-            movePlayer({ x, y, z });
-            return true;
-          }
-          return false;
-        }}
-      />
+const MemoizedMapSystem = memo(function MemoizedMapSystem({ currentMap, movePlayer }: { currentMap: any; movePlayer: (pos: { x: number; y: number; z: number }) => void }) {
+  const onPlayerMove = useCallback((x: number, y: number, z: number) => {
+    const canMove = (window as any).checkCollision(x, y, z);
+    if (canMove) {
+      movePlayer({ x, y, z });
+      return true;
+    }
+    return false;
+  }, [movePlayer]);
+
+  return <MapSystem currentMap={currentMap} onPlayerMove={onPlayerMove} />;
+});
+
+const DamageNumberManager = memo(function DamageNumberManager() {
+  const [events, setEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const arr = (window as any).__combatEventsArr as any[];
+      if (arr && arr.length > 0) {
+        const newEvents = arr.splice(0);
+        setEvents(prev => [...prev, ...newEvents]);
+      }
+      setEvents(prev => {
+        const now = performance.now();
+        const filtered = prev.filter((e: any) => now - e._spawnTime < 1500);
+        return filtered.length !== prev.length ? filtered : prev;
+      });
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      {events.map((event: any, i: number) => (
+        <DamageNumber key={`${event._spawnTime}-${i}`} event={event} />
+      ))}
+    </>
+  );
+});
+
+interface GameSceneProps {
+  inventoryOpen: boolean;
+  onInventoryToggle: () => void;
+  interactionMessage: string | null;
+  onInteractionMessage: (message: string | null) => void;
+}
+
+function CombatController() {
+  const { monsters, targetMonsterId, attackMonster } = useSocket();
+  const monstersRef = useRef(monsters);
+  monstersRef.current = monsters;
+  const attackRef = useRef(attackMonster);
+  attackRef.current = attackMonster;
+
+  useEffect(() => {
+    if (!targetMonsterId) {
+      (window as any).__combatTarget = null;
+      return;
+    }
+
+    const monster = monstersRef.current.find(m => m.id === targetMonsterId);
+    if (!monster || monster.state === "dead") {
+      (window as any).__combatTarget = null;
+      return;
+    }
+
+    (window as any).__combatTarget = { id: targetMonsterId };
+
+    const attackInterval = setInterval(() => {
+      const tid = targetMonsterId;
+      const m = monstersRef.current.find(m => m.id === tid);
+      if (!m || m.state === "dead") return;
+
+      const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
+      if (!localPos) return;
+
+      const dist = Math.sqrt((localPos.x - m.x) ** 2 + (localPos.z - m.z) ** 2);
+      if (dist <= 2.5) {
+        attackRef.current(tid);
+      }
+    }, 700);
+
+    return () => {
+      clearInterval(attackInterval);
+      (window as any).__combatTarget = null;
+    };
+  }, [targetMonsterId]);
+
+  return null;
+}
+
+export default function GameScene({
+  inventoryOpen,
+  onInventoryToggle,
+  interactionMessage,
+  onInteractionMessage,
+}: GameSceneProps) {
+  const { players, currentPlayer, movePlayer, emitMove, monsters, targetMonsterId, setTargetMonsterId } = useSocket();
+
+  const prevMonsters = useRef(monsters);
+  const prevPlayers = useRef(players);
+  if (monsters !== prevMonsters.current) { perfLog.log("monsters"); prevMonsters.current = monsters; }
+  if (players !== prevPlayers.current) { perfLog.log("players"); prevPlayers.current = players; }
+  perfLog.tick();
+
+  const { currentMap } = useGameControls({
+    currentPlayer,
+    movePlayer,
+    emitMove,
+    onInventoryToggle,
+    onInteractionMessage,
+  });
+
+  useEffect(() => {
+    if (targetMonsterId) {
+      const monster = monsters.find(m => m.id === targetMonsterId);
+      if (!monster || monster.state === "dead") {
+        setTargetMonsterId(null);
+      }
+    }
+  }, [monsters, targetMonsterId, setTargetMonsterId]);
+
+  const handleMonsterClick = useCallback((monsterId: string) => {
+    setTargetMonsterId(monsterId);
+  }, [setTargetMonsterId]);
+
+  useEffect(() => {
+    (window as any).__clearTarget = () => setTargetMonsterId(null);
+    return () => { delete (window as any).__clearTarget; };
+  }, [setTargetMonsterId]);
+
+  const isCave = currentMap.id === "cave";
+  const isCastle = currentMap.id === "castle";
+  const isTown = currentMap.id === "town";
+  const isIndoor = isCave || isCastle;
+
+  const cameraTarget = currentPlayer
+    ? { x: currentPlayer.x, y: currentPlayer.y, z: currentPlayer.z }
+    : { x: 0, y: 0, z: 0 };
+
+  const targetMonster = targetMonsterId ? monsters.find(m => m.id === targetMonsterId) : null;
+  const targetPos = targetMonster ? { x: targetMonster.x, z: targetMonster.z } : null;
+
+  return (
+    <>
+      <FollowCamera target={cameraTarget} />
+      <CombatController />
+
+      <SceneEnvironment isCave={isCave} isCastle={isCastle} isTown={isTown} isIndoor={isIndoor} />
+
+      <MemoizedMapSystem currentMap={currentMap} movePlayer={movePlayer} />
 
       {/* Players */}
       {Object.values(players).map((player) => (
@@ -328,7 +385,6 @@ export default function GameScene({
           key={player.id}
           player={player}
           isCurrentPlayer={player.id === currentPlayer?.id}
-          isAttacking={attackingPlayers[player.id] || false}
           targetPosition={player.id === currentPlayer?.id ? targetPos : null}
         />
       ))}
@@ -362,10 +418,8 @@ export default function GameScene({
         />
       ))}
 
-      {/* Damage Numbers */}
-      {combatEvents.map((event, i) => (
-        <DamageNumber key={`${event.type}-${event.attackerId}-${event.targetId}-${i}`} event={event} />
-      ))}
+      {/* Damage Numbers - rendered via useFrame, no React state */}
+      <DamageNumberManager />
     </>
   );
 }

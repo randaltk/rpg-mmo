@@ -161,12 +161,16 @@ export function useGameControls({
     let lastTime = performance.now();
     let wasMoving = false;
     let animFrame: number;
+    let loopCount = 0;
+    let loopLogTime = performance.now();
+    let maxLoopMs = 0;
 
     const MOVE_SPEED = 7.0;
     const EMIT_INTERVAL = 100;
 
     const gameLoop = () => {
-      const now = performance.now();
+      const loopStart = performance.now();
+      const now = loopStart;
       const dt = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
 
@@ -254,6 +258,17 @@ export function useGameControls({
 
         wasMoving = isMoving;
         (window as any).__localPlayerPos = localPos;
+      }
+
+      const loopEnd = performance.now();
+      const loopMs = loopEnd - loopStart;
+      if (loopMs > maxLoopMs) maxLoopMs = loopMs;
+      loopCount++;
+      if (now - loopLogTime > 3000) {
+        console.log(`[PERF gameLoop] ticks/3s: ${loopCount} | maxTick: ${maxLoopMs.toFixed(2)}ms | emitInterval: ${EMIT_INTERVAL}ms`);
+        loopCount = 0;
+        loopLogTime = now;
+        maxLoopMs = 0;
       }
 
       animFrame = requestAnimationFrame(gameLoop);

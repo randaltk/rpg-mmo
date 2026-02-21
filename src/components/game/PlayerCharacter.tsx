@@ -9,7 +9,6 @@ import * as THREE from "three";
 interface PlayerCharacterProps {
   player: Player;
   isCurrentPlayer?: boolean;
-  isAttacking?: boolean;
   targetPosition?: { x: number; z: number } | null;
 }
 
@@ -284,7 +283,6 @@ function Leg({
 function PlayerCharacter({
   player,
   isCurrentPlayer = false,
-  isAttacking = false,
   targetPosition = null,
 }: PlayerCharacterProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -309,12 +307,10 @@ function PlayerCharacter({
   const shoulderGeoL = useMemo(() => createShoulderPadGeometry(), []);
   const shoulderGeoR = useMemo(() => createShoulderPadGeometry(), []);
 
-  useEffect(() => {
-    if (isAttacking && !isAttackingRef.current) {
-      isAttackingRef.current = true;
-      attackAnim.current = 1.0;
-    }
-  }, [isAttacking]);
+  
+
+  const frameTimesRef = useRef<number[]>([]);
+  const lastPerfLog = useRef(0);
 
   const skinColor = "#EDCBA0";
   const shirtColor = player.color;
@@ -329,6 +325,14 @@ function PlayerCharacter({
   const capeBorder = new THREE.Color(player.color).multiplyScalar(0.3).getStyle();
 
   useFrame((state, delta) => {
+    const frameStart = performance.now();
+
+    const atkSet = (window as any).__attackingPlayers as Set<string> | null;
+    if (atkSet?.has(player.id) && !isAttackingRef.current) {
+      isAttackingRef.current = true;
+      attackAnim.current = 1.0;
+    }
+
     const moveDir = (window as any).__moveDirection as { x: number; z: number } | null;
     const localPos = isCurrentPlayer ? (window as any).__localPlayerPos as { x: number; y: number; z: number } | null : null;
 
@@ -464,6 +468,20 @@ function PlayerCharacter({
       const capeSpeed = speed * 0.15;
       const capeAttack = attackAnim.current > 0 ? Math.sin(attackAnim.current * Math.PI) * 0.4 : 0;
       capeRef.current.rotation.x = 0.1 + capeWalk + capeWind + capeSpeed + capeAttack;
+    }
+
+    if (isCurrentPlayer) {
+      const frameMs = performance.now() - frameStart;
+      frameTimesRef.current.push(frameMs);
+      const now = performance.now();
+      if (now - lastPerfLog.current > 3000) {
+        lastPerfLog.current = now;
+        const times = frameTimesRef.current;
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        const max = Math.max(...times);
+        console.log(`[PERF PlayerChar useFrame] avg: ${avg.toFixed(3)}ms | max: ${max.toFixed(3)}ms | calls/3s: ${times.length}`);
+        frameTimesRef.current = [];
+      }
     }
   });
 
@@ -698,14 +716,12 @@ function PlayerCharacter({
 
 export default memo(PlayerCharacter, (prev, next) => {
   if (prev.isCurrentPlayer) {
-    return prev.isAttacking === next.isAttacking &&
-      prev.targetPosition?.x === next.targetPosition?.x &&
+    return prev.targetPosition?.x === next.targetPosition?.x &&
       prev.targetPosition?.z === next.targetPosition?.z;
   }
   return prev.player.x === next.player.x &&
     prev.player.z === next.player.z &&
     prev.player.hp === next.player.hp &&
     prev.player.level === next.player.level &&
-    prev.player.nickname === next.player.nickname &&
-    prev.isAttacking === next.isAttacking;
+    prev.player.nickname === next.player.nickname;
 });

@@ -12,6 +12,26 @@ interface MonsterCharacterProps {
   onClick: (monsterId: string) => void;
 }
 
+const monsterPerfLog = {
+  frameTimes: [] as number[],
+  lastLog: 0,
+  tick(ms: number) {
+    this.frameTimes.push(ms);
+    const now = performance.now();
+    if (now - this.lastLog > 3000) {
+      this.lastLog = now;
+      const times = this.frameTimes;
+      if (times.length > 0) {
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        const max = Math.max(...times);
+        const count = times.length;
+        console.log(`[PERF Monsters useFrame] total calls/3s: ${count} | avg: ${avg.toFixed(3)}ms | max: ${max.toFixed(3)}ms`);
+      }
+      this.frameTimes = [];
+    }
+  }
+};
+
 function createSlimeBodyGeometry(): THREE.LatheGeometry {
   const points: THREE.Vector2[] = [];
   points.push(new THREE.Vector2(0, -0.05));
@@ -545,17 +565,23 @@ function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps)
   const lastHurtState = useRef(monster.state);
 
   useFrame((_, delta) => {
+    const fStart = performance.now();
     if (!groupRef.current || monster.state === "dead") return;
 
-    groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, monster.x, delta * 8);
-    groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, monster.z, delta * 8);
+    const liveData = (window as any).__monstersData as Array<{ id: string; x: number; z: number; state: string }> | null;
+    const live = liveData?.find(m => m.id === monster.id);
+    const mx = live?.x ?? monster.x;
+    const mz = live?.z ?? monster.z;
 
-    const dx = monster.x - prevPos.current.x;
-    const dz = monster.z - prevPos.current.z;
+    groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, mx, delta * 8);
+    groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, mz, delta * 8);
+
+    const dx = mx - prevPos.current.x;
+    const dz = mz - prevPos.current.z;
     if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
       targetRotation.current = Math.atan2(dx, dz);
     }
-    prevPos.current = { x: monster.x, z: monster.z };
+    prevPos.current = { x: mx, z: mz };
 
     let currentRot = groupRef.current.rotation.y;
     let diff = targetRotation.current - currentRot;
@@ -568,6 +594,7 @@ function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps)
       setTimeout(() => setHurtFlash(false), 150);
     }
     lastHurtState.current = monster.state;
+    monsterPerfLog.tick(performance.now() - fStart);
   });
 
   if (monster.state === "dead" && groupRef.current) {
