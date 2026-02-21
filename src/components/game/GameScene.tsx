@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Stars, Sphere } from "@react-three/drei";
 import { useSocket } from "@/hooks/useSocket";
 import { useGameControls } from "@/hooks/useGameControls";
-import PlayerCharacter from "./PlayerCharacter";
+import PlayerCharacter from "./character";
 import MonsterCharacter from "./MonsterCharacter";
 import DamageNumber from "./DamageNumber";
 import FollowCamera from "./FollowCamera";
