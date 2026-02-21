@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Game3D from '@/components/Game3D';
-import LoginModal from '@/components/LoginModal';
-import Chat from '@/components/Chat';
-import PlayersList from '@/components/PlayersList';
-import Inventory from '@/components/Inventory';
+import Game3D from '@/components/game/Game3D';
+import LoginModal from '@/components/ui/LoginModal';
+import Chat from '@/components/ui/Chat';
+import PlayersList from '@/components/ui/PlayersList';
+import Inventory from '@/components/ui/Inventory';
 import { useSocket, SocketProvider } from '@/hooks/useSocket';
 
 function HomeContent() {

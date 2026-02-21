@@ -49,10 +49,11 @@ export default function LoginModal({ onLogin }: LoginModalProps) {
       <div className="mt-6 text-sm text-gray-400">
         <p>Controles:</p>
         <p>WASD ou Setas - Mover</p>
-        <p>Espaço - Subir</p>
-        <p>Shift - Descer</p>
+        <p>E - Interagir</p>
+        <p>I - Inventário</p>
+        <p>Mouse - Girar câmera</p>
+        <p>Scroll - Zoom</p>
       </div>
     </div>
   );
 }
-
