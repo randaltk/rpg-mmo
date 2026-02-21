@@ -1,40 +1,34 @@
-# Node.js dependencies
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # Build output
+.next/
 dist/
 build/
 out/
-.next/
-frontend/.next/
-frontend/node_modules/
-frontend/dist/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# IDE files
+# IDE
 .vscode/
 *.code-workspace
 
-# Environment files
+# Environment
 .env
 .env.local
 .env.*.local
 
-# Logs
-logs/
-*.log
-
-# Large files
+# Binary
 *.swc
 *.node
-
-# Git LFS
 *.psd
 *.zip
 *.tar
@@ -42,5 +36,6 @@ logs/
 *.rar
 *.7z
 
-# Ignore frontend/node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node
-frontend/node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node
+# Legacy (can be removed after cleanup)
+frontend/
+backend/
