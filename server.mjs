@@ -16,10 +16,11 @@ function setupSocketIO(httpServer) {
   const io = new Server(httpServer, {
     cors: { origin: "*" },
     path: "/socket.io",
+    transports: ["websocket", "polling"],
   });
 
   io.on("connection", (socket) => {
-    console.log("Novo jogador conectado:", socket.id);
+    console.log("Player connected:", socket.id);
 
     socket.on("join", ({ nickname }) => {
       const color =
@@ -70,7 +71,7 @@ function setupSocketIO(httpServer) {
       io.emit("chat", { id: socket.id, msg, type: "normal" });
     });
 
-    socket.on("interact", (interactionData) => {
+    socket.on("interact", () => {
       socket.emit("interactionResult", {
         success: true,
         message: "Interação realizada!",
@@ -102,7 +103,7 @@ function setupSocketIO(httpServer) {
     });
 
     socket.on("disconnect", () => {
-      console.log("Jogador saiu:", socket.id);
+      console.log("Player left:", socket.id);
       delete players[socket.id];
       io.emit("removePlayer", socket.id);
     });
@@ -119,8 +120,9 @@ app.prepare().then(() => {
 
   setupSocketIO(httpServer);
 
-  httpServer.listen(port, () => {
-    console.log(`> Servidor rodando em http://localhost:${port}`);
-    console.log(`> Next.js + Socket.io unificados`);
+  httpServer.listen(port, hostname, () => {
+    console.log(`> Server running at http://localhost:${port}`);
+    console.log(`> Next.js + Socket.io unified`);
+    console.log(`> Mode: ${dev ? "development" : "production"}`);
   });
 });

@@ -45,10 +45,12 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     socketInitialized = true;
 
     const newSocket = io({
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       timeout: 20000,
     });
     socketInstance = newSocket;
