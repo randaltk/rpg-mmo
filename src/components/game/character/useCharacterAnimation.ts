@@ -18,7 +18,7 @@ export function useCharacterAnimation({
   const leftLegRef = useRef<THREE.Group>(null);
   const rightLegRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Group>(null);
-  const swordArmRef = useRef<THREE.Group>(null);
+  const weaponArmRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
   const capeRef = useRef<THREE.Mesh>(null);
   const headRef = useRef<THREE.Group>(null);
@@ -130,9 +130,9 @@ export function useCharacterAnimation({
       const phase = at > 0.6 ? (1 - at) / 0.4 : at > 0.3 ? 1 : at / 0.3;
       const swingCurve = Math.sin(phase * Math.PI);
 
-      if (swordArmRef.current) {
-        swordArmRef.current.rotation.x = -2.2 * swingCurve;
-        swordArmRef.current.rotation.z = -0.8 * swingCurve;
+      if (weaponArmRef.current) {
+        weaponArmRef.current.rotation.x = -2.2 * swingCurve;
+        weaponArmRef.current.rotation.z = -0.8 * swingCurve;
       }
       if (leftArmRef.current) {
         leftArmRef.current.rotation.x = 0.4 * swingCurve;
@@ -149,10 +149,10 @@ export function useCharacterAnimation({
         headRef.current.position.y = 1.65;
       }
     } else {
-      if (swordArmRef.current) {
+      if (weaponArmRef.current) {
         const targetArmX = speed > 0.1 ? armSwing : -0.1 + Math.sin(breathCycle.current * 0.7) * 0.03;
-        swordArmRef.current.rotation.x = THREE.MathUtils.lerp(swordArmRef.current.rotation.x, targetArmX, delta * 6);
-        swordArmRef.current.rotation.z = THREE.MathUtils.lerp(swordArmRef.current.rotation.z, 0, delta * 6);
+        weaponArmRef.current.rotation.x = THREE.MathUtils.lerp(weaponArmRef.current.rotation.x, targetArmX, delta * 6);
+        weaponArmRef.current.rotation.z = THREE.MathUtils.lerp(weaponArmRef.current.rotation.z, 0, delta * 6);
       }
       if (leftArmRef.current) {
         const targetLeftX = speed > 0.1 ? -armSwing : -0.05 + Math.sin(breathCycle.current * 0.7 + 1) * 0.03;
@@ -196,5 +196,5 @@ export function useCharacterAnimation({
     }
   });
 
-  return { groupRef, leftLegRef, rightLegRef, leftArmRef, swordArmRef, bodyRef, capeRef, headRef };
+  return { groupRef, leftLegRef, rightLegRef, leftArmRef, weaponArmRef, bodyRef, capeRef, headRef };
 }

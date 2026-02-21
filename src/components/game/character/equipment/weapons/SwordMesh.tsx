@@ -6,7 +6,7 @@ import {
   createSwordBladeGeometry,
   createCrossGuardGeometry,
   createPommelGeometry,
-} from "./geometries";
+} from "../../geometries";
 
 export default function SwordMesh() {
   const bladeGeo = useMemo(() => createSwordBladeGeometry(), []);

@@ -1,3 +1,5 @@
+export type CharacterClass = 'knight' | 'paladin' | 'rogue' | 'assassin' | 'ranger' | 'wizard' | 'sorcerer' | 'priest' | 'monk';
+
 export interface Player {
   id: string;
   nickname: string;
@@ -5,6 +7,7 @@ export interface Player {
   y: number;
   z: number;
   color: string;
+  characterClass?: CharacterClass;
   // Atributos de RPG
   level: number;
   hp: number;

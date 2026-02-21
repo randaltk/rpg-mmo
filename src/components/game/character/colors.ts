@@ -1,31 +1,25 @@
-import * as THREE from "three";
+import { ClassColorPalette } from "./classes/types";
 
 export interface CharacterColors {
   skinColor: string;
-  shirtColor: string;
-  shirtDark: string;
-  armorColor: string;
-  armorHighlight: string;
+  hairColor: string;
+  primary: string;
+  primaryDark: string;
+  secondary: string;
+  accent: string;
   pantsColor: string;
   bootColor: string;
   bootTrim: string;
-  hairColor: string;
   capeColor: string;
   capeBorder: string;
+  armorMetalness: number;
+  armorRoughness: number;
 }
 
-export function deriveCharacterColors(playerColor: string): CharacterColors {
+export function deriveCharacterColors(classColors: ClassColorPalette): CharacterColors {
   return {
     skinColor: "#EDCBA0",
-    shirtColor: playerColor,
-    shirtDark: new THREE.Color(playerColor).multiplyScalar(0.7).getStyle(),
-    armorColor: new THREE.Color(playerColor).multiplyScalar(0.55).getStyle(),
-    armorHighlight: new THREE.Color(playerColor).lerp(new THREE.Color("#ffffff"), 0.2).getStyle(),
-    pantsColor: "#3B2F2F",
-    bootColor: "#5C3A1E",
-    bootTrim: "#8B6914",
     hairColor: "#2A1F1A",
-    capeColor: new THREE.Color(playerColor).multiplyScalar(0.45).getStyle(),
-    capeBorder: new THREE.Color(playerColor).multiplyScalar(0.3).getStyle(),
+    ...classColors,
   };
 }

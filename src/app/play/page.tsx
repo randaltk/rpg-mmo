@@ -7,15 +7,33 @@ import Chat from '@/components/ui/Chat';
 import PlayersList from '@/components/ui/PlayersList';
 import Inventory from '@/components/ui/Inventory';
 import { useSocket, SocketProvider } from '@/hooks/useSocket';
+import { CharacterClass } from '@/types/game';
 
-function NicknameScreen({ onStart }: { onStart: (nickname: string) => void }) {
+const CLASS_ORDER: CharacterClass[] = [
+  'knight', 'paladin', 'rogue', 'assassin', 'ranger', 'wizard', 'sorcerer', 'priest', 'monk',
+];
+
+const CLASS_INFO: Record<CharacterClass, { emoji: string; label: string; weapon: string; desc: string }> = {
+  knight:   { emoji: '⚔️',  label: 'Knight',   weapon: 'Espada + Escudo', desc: 'Armadura pesada prateada, visual imponente de cavaleiro medieval' },
+  paladin:  { emoji: '🛡️', label: 'Paladin',  weapon: 'Espada + Escudo', desc: 'Armadura branca com detalhes dourados, aparência sagrada' },
+  rogue:    { emoji: '🗡️', label: 'Rogue',    weapon: 'Adaga',           desc: 'Roupa de couro escura, estilo furtivo e ágil' },
+  assassin: { emoji: '🥷',  label: 'Assassin', weapon: 'Katar',           desc: 'Visual sombrio com máscara, ágil e letal' },
+  ranger:   { emoji: '🏹',  label: 'Ranger',   weapon: 'Arco',            desc: 'Caçador da floresta com couro leve e verde' },
+  wizard:   { emoji: '🧙',  label: 'Wizard',   weapon: 'Cajado',          desc: 'Túnica azul com chapéu pontudo clássico de mago' },
+  sorcerer: { emoji: '✨',  label: 'Sorcerer', weapon: 'Cajado + Livro',  desc: 'Roupa elegante e mística, tons roxos e dourados' },
+  priest:   { emoji: '🙏',  label: 'Priest',   weapon: 'Cajado',          desc: 'Túnica branca clerical com detalhes dourados' },
+  monk:     { emoji: '👊',  label: 'Monk',     weapon: 'Soqueiras',       desc: 'Artista marcial disciplinado, roupa leve' },
+};
+
+function NicknameScreen({ onStart }: { onStart: (nickname: string, characterClass: CharacterClass) => void }) {
   const [nickname, setNickname] = useState('');
+  const [selectedClass, setSelectedClass] = useState<CharacterClass>('knight');
   const { isConnected } = useSocket();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (nickname.trim()) {
-      onStart(nickname.trim());
+      onStart(nickname.trim(), selectedClass);
     }
   };
 
@@ -41,7 +59,7 @@ function NicknameScreen({ onStart }: { onStart: (nickname: string) => void }) {
         ))}
       </div>
 
-      <div className="relative z-10 w-full max-w-md px-6">
+        <div className="relative z-10 w-full max-w-lg px-6">
         {/* Back button */}
         <Link
           href="/"
@@ -62,7 +80,7 @@ function NicknameScreen({ onStart }: { onStart: (nickname: string) => void }) {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-center mb-1">RPG MMO 3D</h1>
-          <p className="text-gray-400 text-center text-sm mb-8">Escolha seu nome de aventureiro</p>
+          <p className="text-gray-400 text-center text-sm mb-8">Escolha seu nome e classe</p>
 
           {/* Connection status */}
           <div className="flex items-center justify-center gap-2 mb-6">
@@ -90,6 +108,34 @@ function NicknameScreen({ onStart }: { onStart: (nickname: string) => void }) {
                 required
               />
               <p className="text-xs text-gray-500 mt-1.5">{nickname.length}/20 caracteres</p>
+            </div>
+
+            {/* Class Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Classe
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {CLASS_ORDER.map(cls => (
+                  <button
+                    key={cls}
+                    type="button"
+                    onClick={() => setSelectedClass(cls)}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                      selectedClass === cls
+                        ? 'border-purple-500 bg-purple-500/15 ring-1 ring-purple-500/40 scale-[1.03]'
+                        : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <div className="text-xl mb-0.5">{CLASS_INFO[cls].emoji}</div>
+                    <div className="text-[11px] font-bold text-white">{CLASS_INFO[cls].label}</div>
+                    <div className="text-[9px] text-gray-500 leading-tight">{CLASS_INFO[cls].weapon}</div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-2.5 text-center italic min-h-[2.5em]">
+                {CLASS_INFO[selectedClass].desc}
+              </p>
             </div>
 
             <button
@@ -275,8 +321,8 @@ function PlayContent() {
   const [started, setStarted] = useState(false);
   const { joinGame } = useSocket();
 
-  const handleStart = (nickname: string) => {
-    joinGame(nickname);
+  const handleStart = (nickname: string, characterClass: CharacterClass) => {
+    joinGame(nickname, characterClass);
     setStarted(true);
   };
 

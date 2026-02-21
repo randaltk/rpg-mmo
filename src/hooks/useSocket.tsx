@@ -11,7 +11,7 @@ interface SocketContextType {
   currentMap: Map | null;
   monsters: Monster[];
   targetMonsterId: string | null;
-  joinGame: (nickname: string) => void;
+  joinGame: (nickname: string, characterClass?: string) => void;
   movePlayer: (position: MovementData) => void;
   emitMove: (position: MovementData) => void;
   sendChatMessage: (message: string) => void;
@@ -25,7 +25,7 @@ const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 let socketInstance: Socket | null = null;
 let socketInitialized = false;
-let pendingJoin: string | null = null;
+let pendingJoin: { nickname: string; characterClass: string } | null = null;
 
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -68,7 +68,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     newSocket.on('connect', () => {
       setIsConnected(true);
       if (pendingJoin) {
-        newSocket.emit('join', { nickname: pendingJoin });
+        newSocket.emit('join', pendingJoin);
         pendingJoin = null;
       }
     });
@@ -80,7 +80,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     newSocket.on('reconnect', () => {
       setIsConnected(true);
       if (pendingJoin) {
-        newSocket.emit('join', { nickname: pendingJoin });
+        newSocket.emit('join', pendingJoin);
         pendingJoin = null;
       }
     });
@@ -164,17 +164,18 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     return () => {};
   }, []);
 
-  const joinGame = (nickname: string) => {
+  const joinGame = (nickname: string, characterClass: string = 'knight') => {
+    const joinData = { nickname, characterClass };
     const tryJoin = () => {
       if (socket && isConnected) {
-        socket.emit('join', { nickname });
+        socket.emit('join', joinData);
         return true;
       }
       return false;
     };
 
     if (!tryJoin()) {
-      pendingJoin = nickname;
+      pendingJoin = joinData;
       const retryInterval = setInterval(() => {
         if (tryJoin()) {
           clearInterval(retryInterval);
@@ -183,7 +184,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       }, 500);
       setTimeout(() => {
         clearInterval(retryInterval);
-        if (pendingJoin === nickname) pendingJoin = null;
+        if (pendingJoin?.nickname === nickname) pendingJoin = null;
       }, 15000);
     }
   };

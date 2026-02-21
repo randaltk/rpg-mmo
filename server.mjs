@@ -271,7 +271,7 @@ function setupSocketIO(httpServer) {
   io.on("connection", (socket) => {
     console.log("Player connected:", socket.id);
 
-    socket.on("join", ({ nickname }) => {
+    socket.on("join", ({ nickname, characterClass }) => {
       const color =
         "#" +
         Math.floor(Math.random() * 16777215)
@@ -285,6 +285,7 @@ function setupSocketIO(httpServer) {
         y: 0,
         z: 0,
         color,
+        characterClass: characterClass || "knight",
         level: 1,
         hp: 100,
         maxHp: 100,
