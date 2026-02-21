@@ -18,6 +18,7 @@ export default function PlayerCharacter({ player, isCurrentPlayer = false }: Pla
   const leftArmRef = useRef<THREE.Group>(null);
   const rightArmRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
+  const capeRef = useRef<THREE.Mesh>(null);
 
   const prevPos = useRef({ x: player.x, z: player.z });
   const targetRotation = useRef(0);
@@ -25,26 +26,25 @@ export default function PlayerCharacter({ player, isCurrentPlayer = false }: Pla
   const isMoving = useRef(false);
   const smoothSpeed = useRef(0);
 
-  const skinColor = "#F5CBA7";
-  const hairColor = "#3B2F2F";
+  const skinColor = "#EDCBA0";
   const shirtColor = player.color;
-  const pantsColor = "#2C3E50";
-  const shoeColor = "#1A1A1A";
+  const shirtDark = new THREE.Color(player.color).multiplyScalar(0.7).getStyle();
+  const pantsColor = "#3B2F2F";
+  const bootColor = "#5C3A1E";
+  const bootTrim = "#8B6914";
+  const hairColor = "#2A1F1A";
+  const capeColor = new THREE.Color(player.color).multiplyScalar(0.5).getStyle();
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const dx = player.x - prevPos.current.x;
     const dz = player.z - prevPos.current.z;
     const distMoved = Math.sqrt(dx * dx + dz * dz);
 
     isMoving.current = distMoved > 0.001;
-
-    if (isMoving.current) {
-      targetRotation.current = Math.atan2(dx, dz);
-    }
+    if (isMoving.current) targetRotation.current = Math.atan2(dx, dz);
 
     const targetSpeed = isMoving.current ? 1 : 0;
     smoothSpeed.current = THREE.MathUtils.lerp(smoothSpeed.current, targetSpeed, delta * 8);
-
     prevPos.current = { x: player.x, z: player.z };
 
     if (!groupRef.current) return;
@@ -65,8 +65,8 @@ export default function PlayerCharacter({ player, isCurrentPlayer = false }: Pla
       walkCycle.current *= 0.9;
     }
 
-    const swing = Math.sin(walkCycle.current) * 0.6 * speed;
-    const bob = Math.abs(Math.sin(walkCycle.current)) * 0.06 * speed;
+    const swing = Math.sin(walkCycle.current) * 0.5 * speed;
+    const bob = Math.abs(Math.sin(walkCycle.current)) * 0.08 * speed;
 
     groupRef.current.position.y = player.y + bob;
 
@@ -74,159 +74,227 @@ export default function PlayerCharacter({ player, isCurrentPlayer = false }: Pla
       leftLegRef.current.rotation.x = swing;
       rightLegRef.current.rotation.x = -swing;
     }
-
     if (leftArmRef.current && rightArmRef.current) {
-      leftArmRef.current.rotation.x = -swing * 0.7;
-      rightArmRef.current.rotation.x = swing * 0.7;
+      leftArmRef.current.rotation.x = -swing * 0.6;
+      rightArmRef.current.rotation.x = swing * 0.6;
     }
-
     if (bodyRef.current) {
-      bodyRef.current.rotation.z = Math.sin(walkCycle.current) * 0.03 * speed;
+      bodyRef.current.rotation.z = Math.sin(walkCycle.current) * 0.02 * speed;
+    }
+    if (capeRef.current) {
+      capeRef.current.rotation.x = 0.15 + Math.sin(walkCycle.current) * 0.12 * speed + Math.sin(state.clock.elapsedTime * 1.5) * 0.03;
     }
   });
 
   return (
     <group ref={groupRef} position={[player.x, player.y, player.z]}>
       <group ref={bodyRef}>
-        {/* Torso */}
-        <Cylinder args={[0.28, 0.32, 0.8, 8]} position={[0, 0.9, 0]}>
-          <meshStandardMaterial color={shirtColor} roughness={0.8} metalness={0.05} />
-        </Cylinder>
-        <Cylinder args={[0.29, 0.28, 0.08, 8]} position={[0, 1.28, 0]}>
-          <meshStandardMaterial color={shirtColor} roughness={0.9} />
-        </Cylinder>
+        {/* === TORSO === */}
+        {/* Main chest - wide and stocky */}
+        <Box args={[0.7, 0.75, 0.45]} position={[0, 0.88, 0]}>
+          <meshStandardMaterial color={shirtColor} roughness={0.75} />
+        </Box>
+        {/* Chest front detail (tunic fold) */}
+        <Box args={[0.15, 0.55, 0.02]} position={[0, 0.88, 0.235]}>
+          <meshStandardMaterial color={shirtDark} roughness={0.8} />
+        </Box>
+        {/* Lower tunic / skirt */}
+        <Box args={[0.72, 0.2, 0.47]} position={[0, 0.42, 0]} scale={[1, 1, 1]}>
+          <meshStandardMaterial color={shirtColor} roughness={0.8} />
+        </Box>
         {/* Belt */}
-        <Cylinder args={[0.33, 0.33, 0.06, 8]} position={[0, 0.52, 0]}>
-          <meshStandardMaterial color="#8B4513" roughness={0.6} metalness={0.3} />
-        </Cylinder>
-        <Box args={[0.08, 0.06, 0.02]} position={[0, 0.52, 0.33]}>
-          <meshStandardMaterial color="#FFD700" roughness={0.3} metalness={0.8} />
+        <Box args={[0.73, 0.1, 0.48]} position={[0, 0.53, 0]}>
+          <meshStandardMaterial color="#6B4423" roughness={0.5} metalness={0.2} />
+        </Box>
+        {/* Belt buckle */}
+        <Box args={[0.12, 0.1, 0.04]} position={[0, 0.53, 0.26]}>
+          <meshStandardMaterial color="#FFD700" roughness={0.2} metalness={0.8} />
+        </Box>
+        {/* Collar */}
+        <Box args={[0.55, 0.08, 0.35]} position={[0, 1.28, 0]}>
+          <meshStandardMaterial color={shirtDark} roughness={0.8} />
         </Box>
 
-        {/* Head */}
-        <group position={[0, 1.55, 0]}>
-          <Sphere args={[0.22, 16, 16]}>
-            <meshStandardMaterial color={skinColor} roughness={0.9} />
+        {/* === SHOULDER PADS === */}
+        <Sphere args={[0.18, 8, 8]} position={[-0.45, 1.2, 0]} scale={[1, 0.7, 0.9]}>
+          <meshStandardMaterial color="#7A6A5A" roughness={0.5} metalness={0.4} />
+        </Sphere>
+        <Sphere args={[0.18, 8, 8]} position={[0.45, 1.2, 0]} scale={[1, 0.7, 0.9]}>
+          <meshStandardMaterial color="#7A6A5A" roughness={0.5} metalness={0.4} />
+        </Sphere>
+
+        {/* === CAPE === */}
+        <mesh ref={capeRef} position={[0, 1.05, -0.25]} rotation={[0.15, 0, 0]}>
+          <planeGeometry args={[0.6, 0.9]} />
+          <meshStandardMaterial color={capeColor} roughness={0.9} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* === HEAD (chibi - bigger) === */}
+        <group position={[0, 1.65, 0]}>
+          {/* Head shape - rounder, bigger */}
+          <Sphere args={[0.32, 16, 16]}>
+            <meshStandardMaterial color={skinColor} roughness={0.85} />
           </Sphere>
-          {/* Hair */}
-          <Sphere args={[0.23, 16, 16]} position={[0, 0.04, -0.02]} scale={[1, 0.9, 1]}>
+
+          {/* Hair - thick covering */}
+          <Sphere args={[0.33, 16, 16]} position={[0, 0.05, -0.03]} scale={[1.02, 0.95, 1.02]}>
             <meshStandardMaterial color={hairColor} roughness={1} />
           </Sphere>
-          <Box args={[0.36, 0.06, 0.12]} position={[0, 0.15, 0.12]}>
+          {/* Hair front bangs */}
+          <Box args={[0.52, 0.08, 0.15]} position={[0, 0.2, 0.15]} rotation={[0.2, 0, 0]}>
             <meshStandardMaterial color={hairColor} roughness={1} />
           </Box>
-          {/* Eyes */}
-          <Sphere args={[0.04, 8, 8]} position={[-0.08, 0.03, 0.18]}>
+          {/* Side hair */}
+          <Box args={[0.08, 0.2, 0.12]} position={[-0.3, 0.0, 0.1]}>
+            <meshStandardMaterial color={hairColor} roughness={1} />
+          </Box>
+          <Box args={[0.08, 0.2, 0.12]} position={[0.3, 0.0, 0.1]}>
+            <meshStandardMaterial color={hairColor} roughness={1} />
+          </Box>
+
+          {/* Eyes - big and expressive */}
+          <Sphere args={[0.06, 8, 8]} position={[-0.11, 0.02, 0.26]}>
             <meshStandardMaterial color="#FFFFFF" />
           </Sphere>
-          <Sphere args={[0.04, 8, 8]} position={[0.08, 0.03, 0.18]}>
+          <Sphere args={[0.06, 8, 8]} position={[0.11, 0.02, 0.26]}>
             <meshStandardMaterial color="#FFFFFF" />
           </Sphere>
-          <Sphere args={[0.025, 8, 8]} position={[-0.08, 0.03, 0.21]}>
-            <meshStandardMaterial color="#4A90D9" />
+          {/* Iris */}
+          <Sphere args={[0.04, 8, 8]} position={[-0.11, 0.02, 0.305]}>
+            <meshStandardMaterial color="#3A7BD5" />
           </Sphere>
-          <Sphere args={[0.025, 8, 8]} position={[0.08, 0.03, 0.21]}>
-            <meshStandardMaterial color="#4A90D9" />
+          <Sphere args={[0.04, 8, 8]} position={[0.11, 0.02, 0.305]}>
+            <meshStandardMaterial color="#3A7BD5" />
           </Sphere>
-          <Sphere args={[0.012, 6, 6]} position={[-0.08, 0.03, 0.225]}>
-            <meshStandardMaterial color="#000000" />
+          {/* Pupil */}
+          <Sphere args={[0.02, 6, 6]} position={[-0.11, 0.02, 0.33]}>
+            <meshStandardMaterial color="#111111" />
           </Sphere>
-          <Sphere args={[0.012, 6, 6]} position={[0.08, 0.03, 0.225]}>
-            <meshStandardMaterial color="#000000" />
+          <Sphere args={[0.02, 6, 6]} position={[0.11, 0.02, 0.33]}>
+            <meshStandardMaterial color="#111111" />
           </Sphere>
-          {/* Eyebrows */}
-          <Box args={[0.08, 0.015, 0.02]} position={[-0.08, 0.09, 0.19]} rotation={[0, 0, -0.1]}>
+          {/* Eye shine */}
+          <Sphere args={[0.012, 4, 4]} position={[-0.095, 0.04, 0.335]}>
+            <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.5} />
+          </Sphere>
+          <Sphere args={[0.012, 4, 4]} position={[0.125, 0.04, 0.335]}>
+            <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.5} />
+          </Sphere>
+
+          {/* Eyebrows - thicker */}
+          <Box args={[0.1, 0.025, 0.03]} position={[-0.11, 0.1, 0.26]} rotation={[0, 0, -0.1]}>
             <meshStandardMaterial color={hairColor} />
           </Box>
-          <Box args={[0.08, 0.015, 0.02]} position={[0.08, 0.09, 0.19]} rotation={[0, 0, 0.1]}>
+          <Box args={[0.1, 0.025, 0.03]} position={[0.11, 0.1, 0.26]} rotation={[0, 0, 0.1]}>
             <meshStandardMaterial color={hairColor} />
           </Box>
+
           {/* Nose */}
-          <Cylinder args={[0.015, 0.025, 0.06, 6]} position={[0, -0.02, 0.22]} rotation={[Math.PI / 2 - 0.3, 0, 0]}>
+          <Sphere args={[0.03, 6, 6]} position={[0, -0.04, 0.3]}>
             <meshStandardMaterial color={skinColor} roughness={0.9} />
-          </Cylinder>
-          {/* Mouth */}
-          <Box args={[0.06, 0.012, 0.01]} position={[0, -0.08, 0.2]}>
-            <meshStandardMaterial color="#C0776E" />
+          </Sphere>
+
+          {/* Mouth - smile */}
+          <Box args={[0.08, 0.015, 0.01]} position={[0, -0.12, 0.28]}>
+            <meshStandardMaterial color="#B5665A" />
           </Box>
+
           {/* Ears */}
-          <Sphere args={[0.04, 6, 6]} position={[-0.22, 0.0, 0]} scale={[0.4, 1, 0.7]}>
+          <Sphere args={[0.06, 6, 6]} position={[-0.3, -0.02, 0]} scale={[0.4, 0.8, 0.6]}>
             <meshStandardMaterial color={skinColor} roughness={0.9} />
           </Sphere>
-          <Sphere args={[0.04, 6, 6]} position={[0.22, 0.0, 0]} scale={[0.4, 1, 0.7]}>
-            <meshStandardMaterial color={skinColor} roughness={0.9} />
-          </Sphere>
-        </group>
-
-        {/* Left arm */}
-        <group ref={leftArmRef} position={[-0.38, 1.15, 0]}>
-          <Cylinder args={[0.06, 0.07, 0.45, 6]} position={[0, -0.22, 0]}>
-            <meshStandardMaterial color={shirtColor} roughness={0.8} />
-          </Cylinder>
-          <Cylinder args={[0.05, 0.06, 0.35, 6]} position={[0, -0.57, 0]}>
-            <meshStandardMaterial color={skinColor} roughness={0.9} />
-          </Cylinder>
-          <Sphere args={[0.05, 6, 6]} position={[0, -0.76, 0]}>
+          <Sphere args={[0.06, 6, 6]} position={[0.3, -0.02, 0]} scale={[0.4, 0.8, 0.6]}>
             <meshStandardMaterial color={skinColor} roughness={0.9} />
           </Sphere>
         </group>
 
-        {/* Right arm */}
-        <group ref={rightArmRef} position={[0.38, 1.15, 0]}>
-          <Cylinder args={[0.06, 0.07, 0.45, 6]} position={[0, -0.22, 0]}>
+        {/* === LEFT ARM === */}
+        <group ref={leftArmRef} position={[-0.48, 1.1, 0]}>
+          {/* Upper arm (sleeved) */}
+          <Cylinder args={[0.1, 0.12, 0.4, 6]} position={[0, -0.2, 0]}>
             <meshStandardMaterial color={shirtColor} roughness={0.8} />
           </Cylinder>
-          <Cylinder args={[0.05, 0.06, 0.35, 6]} position={[0, -0.57, 0]}>
-            <meshStandardMaterial color={skinColor} roughness={0.9} />
+          {/* Forearm */}
+          <Cylinder args={[0.08, 0.1, 0.3, 6]} position={[0, -0.5, 0]}>
+            <meshStandardMaterial color={skinColor} roughness={0.85} />
           </Cylinder>
-          <Sphere args={[0.05, 6, 6]} position={[0, -0.76, 0]}>
-            <meshStandardMaterial color={skinColor} roughness={0.9} />
+          {/* Hand - chunky */}
+          <Sphere args={[0.08, 6, 6]} position={[0, -0.7, 0]}>
+            <meshStandardMaterial color={skinColor} roughness={0.85} />
+          </Sphere>
+        </group>
+
+        {/* === RIGHT ARM === */}
+        <group ref={rightArmRef} position={[0.48, 1.1, 0]}>
+          <Cylinder args={[0.1, 0.12, 0.4, 6]} position={[0, -0.2, 0]}>
+            <meshStandardMaterial color={shirtColor} roughness={0.8} />
+          </Cylinder>
+          <Cylinder args={[0.08, 0.1, 0.3, 6]} position={[0, -0.5, 0]}>
+            <meshStandardMaterial color={skinColor} roughness={0.85} />
+          </Cylinder>
+          <Sphere args={[0.08, 6, 6]} position={[0, -0.7, 0]}>
+            <meshStandardMaterial color={skinColor} roughness={0.85} />
           </Sphere>
         </group>
       </group>
 
-      {/* Left leg */}
-      <group ref={leftLegRef} position={[-0.13, 0.5, 0]}>
-        <Cylinder args={[0.09, 0.08, 0.4, 6]} position={[0, -0.2, 0]}>
-          <meshStandardMaterial color={pantsColor} roughness={0.8} />
+      {/* === LEFT LEG === */}
+      <group ref={leftLegRef} position={[-0.18, 0.32, 0]}>
+        {/* Thigh */}
+        <Cylinder args={[0.13, 0.12, 0.35, 6]} position={[0, -0.15, 0]}>
+          <meshStandardMaterial color={pantsColor} roughness={0.85} />
         </Cylinder>
-        <Cylinder args={[0.07, 0.06, 0.35, 6]} position={[0, -0.55, 0]}>
-          <meshStandardMaterial color={pantsColor} roughness={0.8} />
+        {/* Shin */}
+        <Cylinder args={[0.11, 0.1, 0.25, 6]} position={[0, -0.43, 0]}>
+          <meshStandardMaterial color={pantsColor} roughness={0.85} />
         </Cylinder>
-        <Box args={[0.1, 0.06, 0.16]} position={[0, -0.75, 0.03]}>
-          <meshStandardMaterial color={shoeColor} roughness={0.6} />
+        {/* Boot */}
+        <Box args={[0.18, 0.18, 0.26]} position={[0, -0.63, 0.03]}>
+          <meshStandardMaterial color={bootColor} roughness={0.7} />
+        </Box>
+        {/* Boot top trim */}
+        <Box args={[0.19, 0.04, 0.22]} position={[0, -0.54, 0.01]}>
+          <meshStandardMaterial color={bootTrim} roughness={0.5} metalness={0.3} />
+        </Box>
+        {/* Boot sole */}
+        <Box args={[0.2, 0.04, 0.28]} position={[0, -0.73, 0.03]}>
+          <meshStandardMaterial color="#2A1A0A" roughness={0.9} />
         </Box>
       </group>
 
-      {/* Right leg */}
-      <group ref={rightLegRef} position={[0.13, 0.5, 0]}>
-        <Cylinder args={[0.09, 0.08, 0.4, 6]} position={[0, -0.2, 0]}>
-          <meshStandardMaterial color={pantsColor} roughness={0.8} />
+      {/* === RIGHT LEG === */}
+      <group ref={rightLegRef} position={[0.18, 0.32, 0]}>
+        <Cylinder args={[0.13, 0.12, 0.35, 6]} position={[0, -0.15, 0]}>
+          <meshStandardMaterial color={pantsColor} roughness={0.85} />
         </Cylinder>
-        <Cylinder args={[0.07, 0.06, 0.35, 6]} position={[0, -0.55, 0]}>
-          <meshStandardMaterial color={pantsColor} roughness={0.8} />
+        <Cylinder args={[0.11, 0.1, 0.25, 6]} position={[0, -0.43, 0]}>
+          <meshStandardMaterial color={pantsColor} roughness={0.85} />
         </Cylinder>
-        <Box args={[0.1, 0.06, 0.16]} position={[0, -0.75, 0.03]}>
-          <meshStandardMaterial color={shoeColor} roughness={0.6} />
+        <Box args={[0.18, 0.18, 0.26]} position={[0, -0.63, 0.03]}>
+          <meshStandardMaterial color={bootColor} roughness={0.7} />
+        </Box>
+        <Box args={[0.19, 0.04, 0.22]} position={[0, -0.54, 0.01]}>
+          <meshStandardMaterial color={bootTrim} roughness={0.5} metalness={0.3} />
+        </Box>
+        <Box args={[0.2, 0.04, 0.28]} position={[0, -0.73, 0.03]}>
+          <meshStandardMaterial color="#2A1A0A" roughness={0.9} />
         </Box>
       </group>
 
-      {/* Name */}
-      <Text position={[0, 2.1, 0]} fontSize={0.22} color="white" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#000">
+      {/* === UI === */}
+      <Text position={[0, 2.45, 0]} fontSize={0.22} color="white" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#000">
         {player.nickname}
       </Text>
-
-      {/* Level */}
-      <Text position={[0, 1.92, 0]} fontSize={0.14} color="#FFD700" anchorX="center" anchorY="middle" outlineWidth={0.01} outlineColor="#000">
+      <Text position={[0, 2.27, 0]} fontSize={0.14} color="#FFD700" anchorX="center" anchorY="middle" outlineWidth={0.01} outlineColor="#000">
         {`Lv.${player.level}`}
       </Text>
 
       {/* HP bar */}
-      <Box position={[0, 2.3, 0]} args={[1.0, 0.1, 0.05]}>
+      <Box position={[0, 2.65, 0]} args={[1.0, 0.1, 0.05]}>
         <meshStandardMaterial color="#222" />
       </Box>
       <Box
-        position={[-(1.0 - (player.hp / player.maxHp) * 1.0) / 2, 2.3, 0.03]}
+        position={[-(1.0 - (player.hp / player.maxHp) * 1.0) / 2, 2.65, 0.03]}
         args={[Math.max((player.hp / player.maxHp) * 1.0, 0.01), 0.08, 0.03]}
       >
         <meshStandardMaterial
@@ -236,10 +304,10 @@ export default function PlayerCharacter({ player, isCurrentPlayer = false }: Pla
         />
       </Box>
 
-      {/* Current player indicator */}
+      {/* Current player ring */}
       {isCurrentPlayer && (
         <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.5, 0.6, 32]} />
+          <ringGeometry args={[0.6, 0.72, 32]} />
           <meshStandardMaterial color="#00E5FF" emissive="#00E5FF" emissiveIntensity={0.8} transparent opacity={0.5} side={THREE.DoubleSide} />
         </mesh>
       )}

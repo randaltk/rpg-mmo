@@ -50,7 +50,7 @@ function SkyDome({ isCave }: { isCave: boolean }) {
 
   return (
     <mesh>
-      <sphereGeometry args={[200, 32, 32]} />
+      <sphereGeometry args={[400, 32, 32]} />
       <shaderMaterial
         ref={matRef}
         vertexShader={vertexShader}
@@ -142,6 +142,9 @@ export default function GameScene({
   });
 
   const isCave = currentMap.id === "cave";
+  const isCastle = currentMap.id === "castle";
+  const isTown = currentMap.id === "town";
+  const isIndoor = isCave || isCastle;
 
   const cameraTarget = currentPlayer
     ? { x: currentPlayer.x, y: currentPlayer.y, z: currentPlayer.z }
@@ -151,9 +154,9 @@ export default function GameScene({
     <>
       <FollowCamera target={cameraTarget} />
 
-      <SkyDome isCave={isCave} />
+      {!isCastle && <SkyDome isCave={isCave} />}
 
-      {!isCave && (
+      {isTown && (
         <>
           <Sun />
           <Clouds />
@@ -164,20 +167,20 @@ export default function GameScene({
         <Stars radius={80} depth={30} count={2000} factor={3} saturation={0.5} fade speed={0.5} />
       )}
 
-      {/* Hemisphere light: sky color from above, ground bounce from below */}
+      {/* Hemisphere light */}
       <hemisphereLight
         args={[
-          isCave ? "#1a1a3e" : "#87CEEB",
-          isCave ? "#0a0a15" : "#5a8a3a",
-          isCave ? 0.2 : 0.6,
+          isCastle ? "#FFE4C4" : isCave ? "#1a1a3e" : "#87CEEB",
+          isCastle ? "#3A3530" : isCave ? "#0a0a15" : "#5a8a3a",
+          isCastle ? 0.15 : isCave ? 0.2 : 0.6,
         ]}
       />
 
-      {/* Main sun/directional */}
+      {/* Main directional light */}
       <directionalLight
-        position={[15, 20, 10]}
-        intensity={isCave ? 0.15 : 1.5}
-        color={isCave ? "#3a3a6e" : "#FFF0D0"}
+        position={isCastle ? [0, 6, 0] : [15, 20, 10]}
+        intensity={isCastle ? 0.3 : isCave ? 0.15 : 1.5}
+        color={isCastle ? "#FF8C00" : isCave ? "#3a3a6e" : "#FFF0D0"}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -188,15 +191,18 @@ export default function GameScene({
         shadow-camera-bottom={-20}
       />
 
-      {/* Warm fill from opposite side */}
+      {/* Fill light */}
       <directionalLight
-        position={[-10, 8, -8]}
-        intensity={isCave ? 0.05 : 0.4}
-        color={isCave ? "#1a1a3a" : "#FFE4C4"}
+        position={isCastle ? [0, 5, 10] : [-10, 8, -8]}
+        intensity={isCastle ? 0.15 : isCave ? 0.05 : 0.4}
+        color={isCastle ? "#FFD0A0" : isCave ? "#1a1a3a" : "#FFE4C4"}
       />
 
-      {/* Ambient warmth */}
-      <ambientLight intensity={isCave ? 0.08 : 0.25} color={isCave ? "#0d0d2b" : "#FFF8F0"} />
+      {/* Ambient */}
+      <ambientLight
+        intensity={isCastle ? 0.12 : isCave ? 0.08 : 0.25}
+        color={isCastle ? "#2A1A0A" : isCave ? "#0d0d2b" : "#FFF8F0"}
+      />
 
       {/* Cave bioluminescent lights */}
       {isCave && (
@@ -212,13 +218,27 @@ export default function GameScene({
         </>
       )}
 
-      {/* Fog blends with sky */}
+      {/* Castle warm torch-like glow */}
+      {isCastle && (
+        <>
+          <pointLight position={[0, 5, -10]} intensity={1} color="#FF8C00" distance={20} decay={1.5} />
+          <pointLight position={[0, 5, 10]} intensity={0.8} color="#FF8C00" distance={20} decay={1.5} />
+          <pointLight position={[-8, 4, 0]} intensity={0.6} color="#FFB347" distance={15} decay={2} />
+          <pointLight position={[8, 4, 0]} intensity={0.6} color="#FFB347" distance={15} decay={2} />
+        </>
+      )}
+
+      {/* Fog */}
       <fog
         attach="fog"
-        args={[isCave ? "#0a0a1a" : "#c8ddf0", isCave ? 20 : 25, isCave ? 65 : 80]}
+        args={[
+          isCastle ? "#1A1510" : isCave ? "#0a0a1a" : "#c8ddf0",
+          isCastle ? 8 : isCave ? 20 : 40,
+          isCastle ? 30 : isCave ? 65 : 160,
+        ]}
       />
 
-      <FloatingParticles isCave={isCave} />
+      <FloatingParticles isCave={isIndoor} />
 
       <MapSystem
         currentMap={currentMap}

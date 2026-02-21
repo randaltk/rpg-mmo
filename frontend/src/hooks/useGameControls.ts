@@ -17,7 +17,7 @@ export function useGameControls({
   onInventoryToggle,
   onInteractionMessage,
 }: UseGameControlsProps) {
-  const [currentMap, setCurrentMap] = useState<Map>(allMaps.town);
+  const [currentMap, setCurrentMap] = useState<Map>(allMaps.castle);
   const currentMapRef = useRef(currentMap);
   currentMapRef.current = currentMap;
 

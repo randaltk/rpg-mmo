@@ -1,64 +1,82 @@
-import { Map } from "@/types/game";
+import { Map, MapObject } from "@/types/game";
+
+function sr(seed: number) {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+function generateTrees(): MapObject[] {
+  const trees: MapObject[] = [];
+  for (let i = 0; i < 60; i++) {
+    const angle = sr(i * 3.7 + 10) * Math.PI * 2;
+    const dist = 8 + sr(i * 5.3 + 20) * 55;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    const h = 3 + sr(i * 2.1 + 30) * 3;
+    trees.push({
+      id: `tree_${i}`, type: "tree", x, y: 0, z,
+      width: 1, height: h, depth: 1, solid: false,
+    });
+  }
+  return trees;
+}
+
+function generateRocks(): MapObject[] {
+  const rocks: MapObject[] = [];
+  for (let i = 0; i < 25; i++) {
+    const angle = sr(i * 7.1 + 50) * Math.PI * 2;
+    const dist = 10 + sr(i * 4.9 + 60) * 50;
+    rocks.push({
+      id: `rock_${i}`, type: "rock",
+      x: Math.cos(angle) * dist, y: 0, z: Math.sin(angle) * dist,
+      width: 0.8 + sr(i * 3.3 + 70) * 1.5,
+      height: 0.5 + sr(i * 2.7 + 80) * 1.5,
+      depth: 0.8 + sr(i * 3.3 + 90) * 1.5,
+      solid: false,
+    });
+  }
+  return rocks;
+}
 
 export const townMap: Map = {
   id: "town",
-  name: "Vila Inicial",
-  width: 40,
-  height: 40,
+  name: "Planícies de Aldoria",
+  width: 150,
+  height: 150,
   objects: [
-    // Paredes externas
-    { id: "wall1", type: "wall", x: -18, y: 0, z: 0, width: 1, height: 4, depth: 40, solid: true },
-    { id: "wall2", type: "wall", x: 18, y: 0, z: 0, width: 1, height: 4, depth: 40, solid: true },
-    { id: "wall3", type: "wall", x: 0, y: 0, z: -18, width: 40, height: 4, depth: 1, solid: true },
-    { id: "wall4", type: "wall", x: 0, y: 0, z: 18, width: 40, height: 4, depth: 1, solid: true },
+    ...generateTrees(),
+    ...generateRocks(),
 
-    // Árvores
-    { id: "tree1", type: "tree", x: -15, y: 0, z: -15, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree2", type: "tree", x: 15, y: 0, z: -15, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree3", type: "tree", x: -15, y: 0, z: 15, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree4", type: "tree", x: 15, y: 0, z: 15, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree5", type: "tree", x: -10, y: 0, z: -10, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree6", type: "tree", x: 10, y: 0, z: -10, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree7", type: "tree", x: -10, y: 0, z: 10, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree8", type: "tree", x: 10, y: 0, z: 10, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree9", type: "tree", x: 0, y: 0, z: -12, width: 1, height: 4, depth: 1, solid: false },
-    { id: "tree10", type: "tree", x: 0, y: 0, z: 12, width: 1, height: 4, depth: 1, solid: false },
-
-    // Rochas
-    { id: "rock1", type: "rock", x: -12, y: 0, z: -12, width: 1, height: 1, depth: 1, solid: false },
-    { id: "rock2", type: "rock", x: 12, y: 0, z: -12, width: 1, height: 1, depth: 1, solid: false },
-    { id: "rock3", type: "rock", x: -12, y: 0, z: 12, width: 1, height: 1, depth: 1, solid: false },
-    { id: "rock4", type: "rock", x: 12, y: 0, z: 12, width: 1, height: 1, depth: 1, solid: false },
-
-    // Baús
+    // Chests scattered around
     {
-      id: "chest1", type: "chest", x: -15, y: 0, z: 0, width: 1, height: 1, depth: 1, solid: false,
+      id: "town_chest1", type: "chest", x: -20, y: 0, z: 15, width: 1, height: 1, depth: 1, solid: false,
       item: { id: "gold_coin", name: "Moeda de Ouro", type: "consumable", rarity: "common", stats: { hp: 10 }, description: "Uma moeda de ouro valiosa.", icon: "💰" },
     },
     {
-      id: "chest2", type: "chest", x: 15, y: 0, z: 0, width: 1, height: 1, depth: 1, solid: false,
+      id: "town_chest2", type: "chest", x: 25, y: 0, z: -18, width: 1, height: 1, depth: 1, solid: false,
       item: { id: "health_potion", name: "Poção de Vida", type: "consumable", rarity: "uncommon", stats: { hp: 50 }, description: "Restaura 50 de HP.", icon: "💊" },
     },
     {
-      id: "chest3", type: "chest", x: 0, y: 0, z: 15, width: 1, height: 1, depth: 1, solid: false,
-      item: { id: "sword", name: "Espada de Madeira", type: "weapon", rarity: "common", stats: { attack: 5 }, description: "Uma espada simples para iniciantes.", icon: "⚔️" },
+      id: "town_chest3", type: "chest", x: -35, y: 0, z: -30, width: 1, height: 1, depth: 1, solid: false,
+      item: { id: "iron_sword", name: "Espada de Ferro", type: "weapon", rarity: "uncommon", stats: { attack: 8 }, description: "Uma espada sólida de ferro.", icon: "⚔️" },
     },
     {
-      id: "chest4", type: "chest", x: 0, y: 0, z: -15, width: 1, height: 1, depth: 1, solid: false,
-      item: { id: "shield", name: "Escudo de Madeira", type: "armor", rarity: "common", stats: { defense: 3 }, description: "Um escudo leve para defender.", icon: "🛡️" },
+      id: "town_chest4", type: "chest", x: 40, y: 0, z: 35, width: 1, height: 1, depth: 1, solid: false,
+      item: { id: "leather_armor", name: "Armadura de Couro", type: "armor", rarity: "uncommon", stats: { defense: 5 }, description: "Proteção leve e flexível.", icon: "🛡️" },
     },
 
-    // Portal para a caverna
+    // Portal back to castle
     {
-      id: "portal1", type: "portal", x: 0, y: 0, z: -16, width: 2, height: 3, depth: 1, solid: false,
-      portalTo: "cave", portalSpawn: { x: 0, y: 0, z: 25 },
+      id: "portal_castle", type: "portal", x: 0, y: 0, z: 0, width: 2, height: 3, depth: 1, solid: false,
+      portalTo: "castle", portalSpawn: { x: 8, y: 0, z: 2 },
     },
   ],
   npcs: [
-    { id: "merchant1", name: "Mercador", x: -8, y: 0, z: 8, type: "merchant", dialogue: ["Olá! Como posso ajudar?", "Vem comprar algo!"], isMoving: false, movementPattern: "static" },
-    { id: "guard1", name: "Guarda", x: 8, y: 0, z: -8, type: "guard", dialogue: ["Quem é você?", "Não se aproxime!"], isMoving: false, movementPattern: "static" },
-    { id: "quest1", name: "Guia de Missão", x: 0, y: 0, z: 0, type: "quest", dialogue: ["Preciso de ajuda para derrotar o dragão!"], isMoving: false, movementPattern: "static" },
-    { id: "wanderer1", name: "Vagabundo", x: -12, y: 0, z: 0, type: "wanderer", dialogue: ["Onde está a cidade?", "Preciso de um guia."], isMoving: false, movementPattern: "static" },
+    { id: "town_merchant", name: "Comerciante Viajante", x: 5, y: 0, z: 8, type: "merchant", dialogue: ["Trago mercadorias de terras distantes!", "Olhe minhas ofertas especiais!"], isMoving: false, movementPattern: "static" },
+    { id: "town_quest", name: "Fazendeiro Aflito", x: -10, y: 0, z: -5, type: "quest", dialogue: ["Monstros estão destruindo minha fazenda!", "Por favor, me ajude aventureiro!"], isMoving: false, movementPattern: "static" },
+    { id: "town_guard", name: "Patrulheiro", x: 15, y: 0, z: -10, type: "guard", dialogue: ["As planícies são perigosas à noite.", "Cuidado com os lobos."], isMoving: false, movementPattern: "static" },
+    { id: "town_wanderer", name: "Bardo Andarilho", x: -20, y: 0, z: 20, type: "wanderer", dialogue: ["♪ Uma canção sobre heróis antigos... ♪", "Quer ouvir uma história?"], isMoving: false, movementPattern: "static" },
+    { id: "town_healer", name: "Curandeira", x: 12, y: 0, z: 15, type: "quest", dialogue: ["Posso curar suas feridas.", "Traga ervas e preparo uma poção."], isMoving: false, movementPattern: "static" },
   ],
   spawnPoints: [{ x: 0, y: 0, z: 0 }],
 };

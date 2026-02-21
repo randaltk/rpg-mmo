@@ -75,10 +75,10 @@ export const caveMap: Map = {
       item: { id: "cave_treasure", name: "Tesouro Ancestral", type: "consumable", rarity: "legendary", stats: { hp: 500 }, description: "Um artefato lendário das profundezas.", icon: "🏺" },
     },
 
-    // Portal de volta para a vila
+    // Portal de volta para o castelo
     {
       id: "portal_back", type: "portal", x: 0, y: 0, z: 27, width: 2, height: 3, depth: 1, solid: false,
-      portalTo: "town", portalSpawn: { x: 0, y: 0, z: -14 },
+      portalTo: "castle", portalSpawn: { x: -8, y: 0, z: 2 },
     },
   ],
   npcs: [
