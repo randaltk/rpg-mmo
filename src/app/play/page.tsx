@@ -137,6 +137,91 @@ function NicknameScreen({ onStart }: { onStart: (nickname: string) => void }) {
   );
 }
 
+function TargetInfo() {
+  const { monsters, targetMonsterId, setTargetMonsterId, currentPlayer } = useSocket();
+  const target = targetMonsterId ? monsters.find(m => m.id === targetMonsterId) : null;
+
+  if (!target || target.state === 'dead') return null;
+
+  const hpPercent = (target.hp / target.maxHp) * 100;
+  const dist = currentPlayer
+    ? Math.sqrt((currentPlayer.x - target.x) ** 2 + (currentPlayer.z - target.z) ** 2).toFixed(1)
+    : '?';
+
+  return (
+    <div className="fixed top-4 right-4 z-50 bg-black/80 backdrop-blur-sm border border-red-500/30 rounded-xl p-3 min-w-[200px]">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <span className="text-red-400 font-bold text-sm">{target.name}</span>
+          <span className="text-yellow-400 text-xs ml-2">Lv.{target.level}</span>
+        </div>
+        <button
+          onClick={() => setTargetMonsterId(null)}
+          className="text-gray-400 hover:text-white text-xs px-1"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="w-full bg-gray-800 rounded-full h-3 mb-1">
+        <div
+          className="h-3 rounded-full transition-all duration-300"
+          style={{
+            width: `${hpPercent}%`,
+            backgroundColor: hpPercent > 50 ? '#E74C3C' : hpPercent > 25 ? '#F1C40F' : '#C0392B',
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-gray-400">
+        <span>{target.hp}/{target.maxHp} HP</span>
+        <span>{dist}m</span>
+      </div>
+    </div>
+  );
+}
+
+function PlayerHUD() {
+  const { currentPlayer } = useSocket();
+  if (!currentPlayer) return null;
+
+  const hpPercent = (currentPlayer.hp / currentPlayer.maxHp) * 100;
+  const expPercent = (currentPlayer.experience / (currentPlayer.level * 100)) * 100;
+
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl p-3 min-w-[300px]">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="text-white font-bold text-sm">{currentPlayer.nickname}</div>
+        <div className="text-yellow-400 text-xs">Lv.{currentPlayer.level}</div>
+        <div className="text-gray-400 text-xs ml-auto">ATK:{currentPlayer.attack} DEF:{currentPlayer.defense}</div>
+      </div>
+      {/* HP */}
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-red-400 text-xs font-bold w-6">HP</span>
+        <div className="flex-1 bg-gray-800 rounded-full h-3">
+          <div
+            className="h-3 rounded-full transition-all duration-300"
+            style={{
+              width: `${hpPercent}%`,
+              backgroundColor: hpPercent > 50 ? '#2ECC71' : hpPercent > 25 ? '#F1C40F' : '#E74C3C',
+            }}
+          />
+        </div>
+        <span className="text-xs text-gray-400 w-16 text-right">{currentPlayer.hp}/{currentPlayer.maxHp}</span>
+      </div>
+      {/* EXP */}
+      <div className="flex items-center gap-2">
+        <span className="text-blue-400 text-xs font-bold w-6">EXP</span>
+        <div className="flex-1 bg-gray-800 rounded-full h-2">
+          <div
+            className="h-2 rounded-full bg-blue-500 transition-all duration-300"
+            style={{ width: `${expPercent}%` }}
+          />
+        </div>
+        <span className="text-xs text-gray-400 w-16 text-right">{currentPlayer.experience}/{currentPlayer.level * 100}</span>
+      </div>
+    </div>
+  );
+}
+
 function GameScreen() {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [interactionMessage, setInteractionMessage] = useState<string | null>(null);
@@ -163,6 +248,9 @@ function GameScreen() {
         <PlayersList />
         <Chat />
       </div>
+
+      <TargetInfo />
+      <PlayerHUD />
 
       {interactionMessage && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white px-6 py-3 rounded-xl z-50 border border-white/10 text-sm font-medium">

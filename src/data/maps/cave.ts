@@ -78,7 +78,7 @@ export const caveMap: Map = {
     // Portal de volta para o castelo
     {
       id: "portal_back", type: "portal", x: 0, y: 0, z: 27, width: 2, height: 3, depth: 1, solid: false,
-      portalTo: "castle", portalSpawn: { x: -8, y: 0, z: 2 },
+      portalTo: "castle", portalSpawn: { x: -8, y: 0, z: 5 },
     },
   ],
   npcs: [

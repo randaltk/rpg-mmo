@@ -76,21 +76,26 @@ export default function FollowCamera({ target }: FollowCameraProps) {
   }, [gl]);
 
   useFrame((_, delta) => {
+    const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
+    const tx = localPos?.x ?? target.x;
+    const ty = localPos?.y ?? target.y;
+    const tz = localPos?.z ?? target.z;
+
     const d = distance.current;
     const p = pitch.current;
     const y = yaw.current;
 
     const desiredPos = new THREE.Vector3(
-      target.x + d * Math.sin(y) * Math.cos(p),
-      target.y + d * Math.sin(p),
-      target.z + d * Math.cos(y) * Math.cos(p)
+      tx + d * Math.sin(y) * Math.cos(p),
+      ty + d * Math.sin(p),
+      tz + d * Math.cos(y) * Math.cos(p)
     );
 
     const lerpFactor = 1 - Math.pow(0.02, delta);
     smoothPos.current.lerp(desiredPos, lerpFactor);
     camera.position.copy(smoothPos.current);
 
-    const desiredLook = new THREE.Vector3(target.x, target.y + 1, target.z);
+    const desiredLook = new THREE.Vector3(tx, ty + 1, tz);
     lookTarget.current.lerp(desiredLook, lerpFactor);
     camera.lookAt(lookTarget.current);
   });

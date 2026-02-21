@@ -29,13 +29,13 @@ export const castleMap: Map = {
     // Portal para a Caverna (lado esquerdo)
     {
       id: "portal_cave", type: "portal", x: -8, y: 0, z: 0, width: 2, height: 3, depth: 1, solid: false,
-      portalTo: "cave", portalSpawn: { x: 0, y: 0, z: 25 },
+      portalTo: "cave", portalSpawn: { x: 0, y: 0, z: 22 },
     },
 
     // Portal para a Town (lado direito)
     {
       id: "portal_town", type: "portal", x: 8, y: 0, z: 0, width: 2, height: 3, depth: 1, solid: false,
-      portalTo: "town", portalSpawn: { x: 0, y: 0, z: 0 },
+      portalTo: "town", portalSpawn: { x: 0, y: 0, z: 5 },
     },
 
     // Baú do tesouro real

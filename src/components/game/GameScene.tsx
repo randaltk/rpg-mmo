@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Stars, Sphere } from "@react-three/drei";
 import { useSocket } from "@/hooks/useSocket";
 import { useGameControls } from "@/hooks/useGameControls";
 import PlayerCharacter from "./PlayerCharacter";
+import MonsterCharacter from "./MonsterCharacter";
+import DamageNumber from "./DamageNumber";
 import FollowCamera from "./FollowCamera";
 import FloatingParticles from "./FloatingParticles";
 import MapSystem from "../MapSystem";
@@ -50,7 +52,7 @@ function SkyDome({ isCave }: { isCave: boolean }) {
 
   return (
     <mesh>
-      <sphereGeometry args={[400, 32, 32]} />
+      <sphereGeometry args={[400, 16, 16]} />
       <shaderMaterial
         ref={matRef}
         vertexShader={vertexShader}
@@ -84,8 +86,8 @@ function Sun() {
 function Clouds() {
   const cloudsData = useMemo(() => {
     const data = [];
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
       const radius = 30 + Math.sin(i * 3.7) * 15;
       data.push({
         x: Math.cos(angle) * radius,
@@ -126,20 +128,95 @@ interface GameSceneProps {
   onInteractionMessage: (message: string | null) => void;
 }
 
+function CombatController() {
+  const { monsters, targetMonsterId, attackMonster } = useSocket();
+  const monstersRef = useRef(monsters);
+  monstersRef.current = monsters;
+  const attackRef = useRef(attackMonster);
+  attackRef.current = attackMonster;
+
+  useEffect(() => {
+    if (!targetMonsterId) {
+      (window as any).__combatTarget = null;
+      return;
+    }
+
+    const monster = monstersRef.current.find(m => m.id === targetMonsterId);
+    if (!monster || monster.state === "dead") {
+      (window as any).__combatTarget = null;
+      return;
+    }
+
+    (window as any).__combatTarget = { id: targetMonsterId };
+
+    const attackInterval = setInterval(() => {
+      const tid = targetMonsterId;
+      const m = monstersRef.current.find(m => m.id === tid);
+      if (!m || m.state === "dead") return;
+
+      const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
+      if (!localPos) return;
+
+      const dist = Math.sqrt((localPos.x - m.x) ** 2 + (localPos.z - m.z) ** 2);
+      if (dist <= 2.5) {
+        attackRef.current(tid);
+      }
+    }, 700);
+
+    return () => {
+      clearInterval(attackInterval);
+      (window as any).__combatTarget = null;
+    };
+  }, [targetMonsterId]);
+
+  return null;
+}
+
 export default function GameScene({
   inventoryOpen,
   onInventoryToggle,
   interactionMessage,
   onInteractionMessage,
 }: GameSceneProps) {
-  const { players, currentPlayer, movePlayer } = useSocket();
+  const { players, currentPlayer, movePlayer, emitMove, monsters, combatEvents, targetMonsterId, setTargetMonsterId, attackMonster } = useSocket();
+  const [attackingPlayers, setAttackingPlayers] = useState<Record<string, boolean>>({});
 
   const { currentMap } = useGameControls({
     currentPlayer,
     movePlayer,
+    emitMove,
     onInventoryToggle,
     onInteractionMessage,
   });
+
+  useEffect(() => {
+    for (const event of combatEvents) {
+      if (event.type === "playerAttack") {
+        setAttackingPlayers(prev => ({ ...prev, [event.attackerId]: true }));
+        setTimeout(() => {
+          setAttackingPlayers(prev => ({ ...prev, [event.attackerId]: false }));
+        }, 400);
+      }
+    }
+  }, [combatEvents]);
+
+  useEffect(() => {
+    if (targetMonsterId) {
+      const monster = monsters.find(m => m.id === targetMonsterId);
+      if (!monster || monster.state === "dead") {
+        setTargetMonsterId(null);
+      }
+    }
+  }, [monsters, targetMonsterId, setTargetMonsterId]);
+
+  const handleMonsterClick = useCallback((monsterId: string) => {
+    setTargetMonsterId(monsterId);
+  }, [setTargetMonsterId]);
+
+  useEffect(() => {
+    (window as any).__clearTarget = () => setTargetMonsterId(null);
+    return () => { delete (window as any).__clearTarget; };
+  }, [setTargetMonsterId]);
 
   const isCave = currentMap.id === "cave";
   const isCastle = currentMap.id === "castle";
@@ -150,9 +227,13 @@ export default function GameScene({
     ? { x: currentPlayer.x, y: currentPlayer.y, z: currentPlayer.z }
     : { x: 0, y: 0, z: 0 };
 
+  const targetMonster = targetMonsterId ? monsters.find(m => m.id === targetMonsterId) : null;
+  const targetPos = targetMonster ? { x: targetMonster.x, z: targetMonster.z } : null;
+
   return (
     <>
       <FollowCamera target={cameraTarget} />
+      <CombatController />
 
       {!isCastle && <SkyDome isCave={isCave} />}
 
@@ -167,7 +248,6 @@ export default function GameScene({
         <Stars radius={80} depth={30} count={2000} factor={3} saturation={0.5} fade speed={0.5} />
       )}
 
-      {/* Hemisphere light */}
       <hemisphereLight
         args={[
           isCastle ? "#FFE4C4" : isCave ? "#1a1a3e" : "#87CEEB",
@@ -176,49 +256,40 @@ export default function GameScene({
         ]}
       />
 
-      {/* Main directional light */}
       <directionalLight
         position={isCastle ? [0, 6, 0] : [15, 20, 10]}
         intensity={isCastle ? 0.3 : isCave ? 0.15 : 1.5}
         color={isCastle ? "#FF8C00" : isCave ? "#3a3a6e" : "#FFF0D0"}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-far={50}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-far={40}
+        shadow-camera-left={-15}
+        shadow-camera-right={15}
+        shadow-camera-top={15}
+        shadow-camera-bottom={-15}
       />
 
-      {/* Fill light */}
       <directionalLight
         position={isCastle ? [0, 5, 10] : [-10, 8, -8]}
         intensity={isCastle ? 0.15 : isCave ? 0.05 : 0.4}
         color={isCastle ? "#FFD0A0" : isCave ? "#1a1a3a" : "#FFE4C4"}
       />
 
-      {/* Ambient */}
       <ambientLight
         intensity={isCastle ? 0.12 : isCave ? 0.08 : 0.25}
         color={isCastle ? "#2A1A0A" : isCave ? "#0d0d2b" : "#FFF8F0"}
       />
 
-      {/* Cave bioluminescent lights */}
       {isCave && (
         <>
-          <pointLight position={[-12, 1.5, -8]} intensity={0.6} color="#00CED1" distance={14} />
-          <pointLight position={[14, 1.5, -5]} intensity={0.5} color="#9B30FF" distance={12} />
-          <pointLight position={[0, 1, -20]} intensity={0.4} color="#00FF7F" distance={12} />
-          <pointLight position={[-5, 1.5, -15]} intensity={0.5} color="#4169E1" distance={12} />
-          <pointLight position={[18, 1, 10]} intensity={0.4} color="#00CED1" distance={10} />
-          <pointLight position={[-20, 1, 10]} intensity={0.4} color="#9B30FF" distance={10} />
-          <pointLight position={[0, 2, 15]} intensity={0.5} color="#7B68EE" distance={14} />
-          <pointLight position={[0, 3, 0]} intensity={0.6} color="#6A5ACD" distance={20} />
+          <pointLight position={[-12, 1.5, -8]} intensity={0.7} color="#00CED1" distance={20} />
+          <pointLight position={[14, 1.5, -5]} intensity={0.6} color="#9B30FF" distance={18} />
+          <pointLight position={[0, 3, 0]} intensity={0.8} color="#6A5ACD" distance={30} />
+          <pointLight position={[0, 2, 15]} intensity={0.6} color="#7B68EE" distance={18} />
         </>
       )}
 
-      {/* Castle warm torch-like glow */}
       {isCastle && (
         <>
           <pointLight position={[0, 5, -10]} intensity={1} color="#FF8C00" distance={20} decay={1.5} />
@@ -228,7 +299,6 @@ export default function GameScene({
         </>
       )}
 
-      {/* Fog */}
       <fog
         attach="fog"
         args={[
@@ -252,11 +322,14 @@ export default function GameScene({
         }}
       />
 
+      {/* Players */}
       {Object.values(players).map((player) => (
         <PlayerCharacter
           key={player.id}
           player={player}
           isCurrentPlayer={player.id === currentPlayer?.id}
+          isAttacking={attackingPlayers[player.id] || false}
+          targetPosition={player.id === currentPlayer?.id ? targetPos : null}
         />
       ))}
 
@@ -278,6 +351,21 @@ export default function GameScene({
           isCurrentPlayer={true}
         />
       )}
+
+      {/* Monsters */}
+      {monsters.map((monster) => (
+        <MonsterCharacter
+          key={monster.id}
+          monster={monster}
+          isTarget={monster.id === targetMonsterId}
+          onClick={handleMonsterClick}
+        />
+      ))}
+
+      {/* Damage Numbers */}
+      {combatEvents.map((event, i) => (
+        <DamageNumber key={`${event.type}-${event.attackerId}-${event.targetId}-${i}`} event={event} />
+      ))}
     </>
   );
 }

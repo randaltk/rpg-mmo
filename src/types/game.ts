@@ -70,6 +70,7 @@ export interface Map {
   objects: MapObject[];
   npcs: NPC[];
   spawnPoints: { x: number; y: number; z: number }[];
+  monsterSpawns?: MonsterSpawn[];
 }
 
 export interface GameState {
@@ -96,10 +97,56 @@ export interface MovementData {
   z: number;
 }
 
+export interface Monster {
+  id: string;
+  name: string;
+  type: 'slime' | 'goblin' | 'wolf' | 'skeleton';
+  x: number;
+  y: number;
+  z: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  level: number;
+  expReward: number;
+  color: string;
+  state: 'idle' | 'wandering' | 'chasing' | 'attacking' | 'hurt' | 'dead';
+  targetPlayerId?: string;
+  spawnX: number;
+  spawnZ: number;
+  respawnTime: number;
+}
+
+export interface MonsterSpawn {
+  id: string;
+  type: Monster['type'];
+  x: number;
+  z: number;
+  count: number;
+  radius: number;
+  level: number;
+  color?: string;
+}
+
+export interface CombatEvent {
+  type: 'playerAttack' | 'monsterAttack' | 'monsterDeath' | 'playerDeath';
+  attackerId: string;
+  targetId: string;
+  damage: number;
+  isCrit?: boolean;
+  targetHp?: number;
+  targetMaxHp?: number;
+  expGained?: number;
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface InteractionData {
   type: 'talk' | 'trade' | 'attack' | 'collect' | 'use';
   targetId: string;
-  targetType: 'player' | 'npc' | 'object';
+  targetType: 'player' | 'npc' | 'object' | 'monster';
   data?: any;
 }
 

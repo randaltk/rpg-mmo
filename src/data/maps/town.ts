@@ -1,4 +1,4 @@
-import { Map, MapObject } from "@/types/game";
+import { Map, MapObject, MonsterSpawn } from "@/types/game";
 
 function sr(seed: number) {
   const x = Math.sin(seed) * 10000;
@@ -68,7 +68,7 @@ export const townMap: Map = {
     // Portal back to castle
     {
       id: "portal_castle", type: "portal", x: 0, y: 0, z: 0, width: 2, height: 3, depth: 1, solid: false,
-      portalTo: "castle", portalSpawn: { x: 8, y: 0, z: 2 },
+      portalTo: "castle", portalSpawn: { x: 8, y: 0, z: 5 },
     },
   ],
   npcs: [
@@ -79,4 +79,11 @@ export const townMap: Map = {
     { id: "town_healer", name: "Curandeira", x: 12, y: 0, z: 15, type: "quest", dialogue: ["Posso curar suas feridas.", "Traga ervas e preparo uma poção."], isMoving: false, movementPattern: "static" },
   ],
   spawnPoints: [{ x: 0, y: 0, z: 0 }],
+  monsterSpawns: [
+    { id: "spawn_slime_1", type: "slime", x: 15, z: 20, count: 3, radius: 8, level: 1, color: "#4CAF50" },
+    { id: "spawn_slime_2", type: "slime", x: -25, z: -15, count: 3, radius: 8, level: 2, color: "#2196F3" },
+    { id: "spawn_slime_3", type: "slime", x: 30, z: -25, count: 2, radius: 6, level: 3, color: "#E91E63" },
+    { id: "spawn_goblin_1", type: "goblin", x: -35, z: 25, count: 2, radius: 6, level: 3, color: "#5D8C3E" },
+    { id: "spawn_goblin_2", type: "goblin", x: 40, z: 10, count: 2, radius: 6, level: 4, color: "#7A6A3A" },
+  ],
 };

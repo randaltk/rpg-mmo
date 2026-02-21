@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Player, ChatMessage, MovementData, InteractionData, Map } from '@/types/game';
+import { Player, ChatMessage, MovementData, InteractionData, Map, Monster, CombatEvent } from '@/types/game';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -9,11 +9,17 @@ interface SocketContextType {
   currentPlayer: Player | null;
   chatMessages: ChatMessage[];
   currentMap: Map | null;
+  monsters: Monster[];
+  combatEvents: CombatEvent[];
+  targetMonsterId: string | null;
   joinGame: (nickname: string) => void;
   movePlayer: (position: MovementData) => void;
+  emitMove: (position: MovementData) => void;
   sendChatMessage: (message: string) => void;
   interact: (interactionData: InteractionData) => void;
   equipItem: (itemId: string, slot: 'weapon' | 'armor' | 'accessory') => void;
+  attackMonster: (monsterId: string) => void;
+  setTargetMonsterId: (id: string | null) => void;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -29,6 +35,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentMap, setCurrentMap] = useState<Map | null>(null);
+  const [monsters, setMonsters] = useState<Monster[]>([]);
+  const [combatEvents, setCombatEvents] = useState<CombatEvent[]>([]);
+  const [targetMonsterId, setTargetMonsterId] = useState<string | null>(null);
+  const attackCooldownRef = useRef(false);
 
   useEffect(() => {
     if (socketInstance && socketInitialized && socketInstance.connected) {
@@ -99,10 +109,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on('playerMoved', (player: Player) => {
+      if (player.id === newSocket.id) return;
       setPlayers(prev => ({ ...prev, [player.id]: player }));
-      if (player.id !== newSocket.id) {
-        setCurrentPlayer(prev => prev?.id === player.id ? player : prev);
-      }
     });
 
     newSocket.on('removePlayer', (playerId: string) => {
@@ -115,6 +123,26 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     newSocket.on('chat', (message: ChatMessage) => {
       setChatMessages(prev => [...prev, { ...message, timestamp: Date.now() }]);
+    });
+
+    newSocket.on('monstersUpdate', (monsterList: Monster[]) => {
+      setMonsters(monsterList);
+      (window as any).__monstersData = monsterList;
+    });
+
+    newSocket.on('combatEvent', (event: CombatEvent) => {
+      setCombatEvents(prev => [...prev, event]);
+      setTimeout(() => {
+        setCombatEvents(prev => prev.filter(e => e !== event));
+      }, 1500);
+    });
+
+    newSocket.on('playerUpdated', (player: Player) => {
+      const socketId = newSocket.id;
+      if (socketId && player.id === socketId) {
+        setCurrentPlayer(player);
+        setPlayers(prev => ({ ...prev, [player.id]: player }));
+      }
     });
 
     return () => {};
@@ -144,14 +172,21 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const movePlayer = (position: MovementData) => {
-    if (socket && currentPlayer) {
+  const socketRef = useRef(socket);
+  socketRef.current = socket;
+
+  const emitMove = useCallback((position: MovementData) => {
+    socketRef.current?.emit('move', position);
+  }, []);
+
+  const movePlayer = useCallback((position: MovementData) => {
+    if (socketRef.current && currentPlayer) {
       const updatedPlayer = { ...currentPlayer, ...position };
       setCurrentPlayer(updatedPlayer);
       setPlayers(prev => ({ ...prev, [currentPlayer.id]: updatedPlayer }));
-      socket.emit('move', position);
+      socketRef.current.emit('move', position);
     }
-  };
+  }, [currentPlayer]);
 
   const sendChatMessage = (message: string) => {
     if (socket) socket.emit('chat', message);
@@ -165,9 +200,18 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     if (socket && currentPlayer) socket.emit('equipItem', { itemId, slot });
   };
 
+  const attackMonster = useCallback((monsterId: string) => {
+    if (socket && currentPlayer && !attackCooldownRef.current) {
+      attackCooldownRef.current = true;
+      socket.emit('attackMonster', { monsterId });
+      setTimeout(() => { attackCooldownRef.current = false; }, 600);
+    }
+  }, [socket, currentPlayer]);
+
   const value = {
     socket, isConnected, players, currentPlayer, chatMessages, currentMap,
-    joinGame, movePlayer, sendChatMessage, interact, equipItem,
+    monsters, combatEvents, targetMonsterId,
+    joinGame, movePlayer, emitMove, sendChatMessage, interact, equipItem, attackMonster, setTargetMonsterId,
   };
 
   return (
