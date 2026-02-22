@@ -1,18 +1,15 @@
 import { Map, MapObject, MonsterSpawn } from "@/types/game";
-
-function sr(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
+import { seededRandom } from "@/utils/seededRandom";
+import { MONSTER_SPAWNS } from "@/shared/monsterSpawns";
 
 function generateTrees(): MapObject[] {
   const trees: MapObject[] = [];
   for (let i = 0; i < 60; i++) {
-    const angle = sr(i * 3.7 + 10) * Math.PI * 2;
-    const dist = 8 + sr(i * 5.3 + 20) * 55;
+    const angle = seededRandom(i * 3.7 + 10) * Math.PI * 2;
+    const dist = 8 + seededRandom(i * 5.3 + 20) * 55;
     const x = Math.cos(angle) * dist;
     const z = Math.sin(angle) * dist;
-    const h = 3 + sr(i * 2.1 + 30) * 3;
+    const h = 3 + seededRandom(i * 2.1 + 30) * 3;
     trees.push({
       id: `tree_${i}`, type: "tree", x, y: 0, z,
       width: 1, height: h, depth: 1, solid: false,
@@ -24,14 +21,14 @@ function generateTrees(): MapObject[] {
 function generateRocks(): MapObject[] {
   const rocks: MapObject[] = [];
   for (let i = 0; i < 25; i++) {
-    const angle = sr(i * 7.1 + 50) * Math.PI * 2;
-    const dist = 10 + sr(i * 4.9 + 60) * 50;
+    const angle = seededRandom(i * 7.1 + 50) * Math.PI * 2;
+    const dist = 10 + seededRandom(i * 4.9 + 60) * 50;
     rocks.push({
       id: `rock_${i}`, type: "rock",
       x: Math.cos(angle) * dist, y: 0, z: Math.sin(angle) * dist,
-      width: 0.8 + sr(i * 3.3 + 70) * 1.5,
-      height: 0.5 + sr(i * 2.7 + 80) * 1.5,
-      depth: 0.8 + sr(i * 3.3 + 90) * 1.5,
+      width: 0.8 + seededRandom(i * 3.3 + 70) * 1.5,
+      height: 0.5 + seededRandom(i * 2.7 + 80) * 1.5,
+      depth: 0.8 + seededRandom(i * 3.3 + 90) * 1.5,
       solid: false,
     });
   }
@@ -79,11 +76,5 @@ export const townMap: Map = {
     { id: "town_healer", name: "Curandeira", x: 12, y: 0, z: 15, type: "quest", dialogue: ["Posso curar suas feridas.", "Traga ervas e preparo uma poção."], isMoving: false, movementPattern: "static" },
   ],
   spawnPoints: [{ x: 0, y: 0, z: 0 }],
-  monsterSpawns: [
-    { id: "spawn_slime_1", type: "slime", x: 15, z: 20, count: 3, radius: 8, level: 1, color: "#4CAF50" },
-    { id: "spawn_slime_2", type: "slime", x: -25, z: -15, count: 3, radius: 8, level: 2, color: "#2196F3" },
-    { id: "spawn_slime_3", type: "slime", x: 30, z: -25, count: 2, radius: 6, level: 3, color: "#E91E63" },
-    { id: "spawn_goblin_1", type: "goblin", x: -35, z: 25, count: 2, radius: 6, level: 3, color: "#5D8C3E" },
-    { id: "spawn_goblin_2", type: "goblin", x: 40, z: 10, count: 2, radius: 6, level: 4, color: "#7A6A3A" },
-  ],
+  monsterSpawns: MONSTER_SPAWNS as MonsterSpawn[],
 };

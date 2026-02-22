@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
 
 const DEFAULT_YAW = 0;
@@ -22,7 +23,7 @@ export default function FollowCamera({ target }: FollowCameraProps) {
   const lookTarget = useRef(new THREE.Vector3());
 
   useEffect(() => {
-    (window as any).__cameraYaw = yaw;
+    useGameStore.getState().setCameraYaw(yaw);
   }, []);
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function FollowCamera({ target }: FollowCameraProps) {
   const _desiredLook = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
-    const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
+    const localPos = useGameStore.getState().localPlayerPos;
     const tx = localPos?.x ?? target.x;
     const ty = localPos?.y ?? target.y;
     const tz = localPos?.z ?? target.z;

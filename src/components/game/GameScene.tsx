@@ -10,7 +10,8 @@ import MonsterCharacter from "./MonsterCharacter";
 import DamageNumber from "./DamageNumber";
 import FollowCamera from "./FollowCamera";
 import FloatingParticles from "./FloatingParticles";
-import MapSystem from "../MapSystem";
+import MapSystem from "../map/MapSystem";
+import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
 
 const perfLog = {
@@ -226,17 +227,8 @@ const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTo
   );
 });
 
-const MemoizedMapSystem = memo(function MemoizedMapSystem({ currentMap, movePlayer }: { currentMap: any; movePlayer: (pos: { x: number; y: number; z: number }) => void }) {
-  const onPlayerMove = useCallback((x: number, y: number, z: number) => {
-    const canMove = (window as any).checkCollision(x, y, z);
-    if (canMove) {
-      movePlayer({ x, y, z });
-      return true;
-    }
-    return false;
-  }, [movePlayer]);
-
-  return <MapSystem currentMap={currentMap} onPlayerMove={onPlayerMove} />;
+const MemoizedMapSystem = memo(function MemoizedMapSystem({ currentMap }: { currentMap: any }) {
+  return <MapSystem currentMap={currentMap} />;
 });
 
 const DamageNumberManager = memo(function DamageNumberManager() {
@@ -244,10 +236,9 @@ const DamageNumberManager = memo(function DamageNumberManager() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const arr = (window as any).__combatEventsArr as any[];
-      if (arr && arr.length > 0) {
-        const newEvents = arr.splice(0);
-        setEvents(prev => [...prev, ...newEvents]);
+      const drained = useGameStore.getState().drainCombatEvents();
+      if (drained.length > 0) {
+        setEvents(prev => [...prev, ...drained]);
       }
       setEvents(prev => {
         const now = performance.now();
@@ -283,24 +274,24 @@ function CombatController() {
 
   useEffect(() => {
     if (!targetMonsterId) {
-      (window as any).__combatTarget = null;
+      useGameStore.getState().setCombatTarget(null);
       return;
     }
 
     const monster = monstersRef.current.find(m => m.id === targetMonsterId);
     if (!monster || monster.state === "dead") {
-      (window as any).__combatTarget = null;
+      useGameStore.getState().setCombatTarget(null);
       return;
     }
 
-    (window as any).__combatTarget = { id: targetMonsterId };
+    useGameStore.getState().setCombatTarget({ id: targetMonsterId });
 
     const attackInterval = setInterval(() => {
       const tid = targetMonsterId;
       const m = monstersRef.current.find(m => m.id === tid);
       if (!m || m.state === "dead") return;
 
-      const localPos = (window as any).__localPlayerPos as { x: number; y: number; z: number } | null;
+      const localPos = useGameStore.getState().localPlayerPos;
       if (!localPos) return;
 
       const dist = Math.sqrt((localPos.x - m.x) ** 2 + (localPos.z - m.z) ** 2);
@@ -311,7 +302,7 @@ function CombatController() {
 
     return () => {
       clearInterval(attackInterval);
-      (window as any).__combatTarget = null;
+      useGameStore.getState().setCombatTarget(null);
     };
   }, [targetMonsterId]);
 
@@ -324,7 +315,7 @@ export default function GameScene({
   interactionMessage,
   onInteractionMessage,
 }: GameSceneProps) {
-  const { players, currentPlayer, movePlayer, emitMove, monsters, targetMonsterId, setTargetMonsterId } = useSocket();
+  const { players, currentPlayer, movePlayer, emitMove, emitChangeMap, monsters, targetMonsterId, setTargetMonsterId } = useSocket();
 
   const prevMonsters = useRef(monsters);
   const prevPlayers = useRef(players);
@@ -336,6 +327,7 @@ export default function GameScene({
     currentPlayer,
     movePlayer,
     emitMove,
+    emitChangeMap,
     onInventoryToggle,
     onInteractionMessage,
   });
@@ -354,8 +346,8 @@ export default function GameScene({
   }, [setTargetMonsterId]);
 
   useEffect(() => {
-    (window as any).__clearTarget = () => setTargetMonsterId(null);
-    return () => { delete (window as any).__clearTarget; };
+    useGameStore.getState().setClearTarget(() => setTargetMonsterId(null));
+    return () => { useGameStore.getState().setClearTarget(null); };
   }, [setTargetMonsterId]);
 
   const isCave = currentMap.id === "cave";
@@ -377,7 +369,7 @@ export default function GameScene({
 
       <SceneEnvironment isCave={isCave} isCastle={isCastle} isTown={isTown} isIndoor={isIndoor} />
 
-      <MemoizedMapSystem currentMap={currentMap} movePlayer={movePlayer} />
+      <MemoizedMapSystem currentMap={currentMap} />
 
       {/* Players */}
       {Object.values(players).map((player) => (

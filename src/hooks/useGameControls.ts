@@ -3,11 +3,13 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { Map } from "@/types/game";
 import { allMaps } from "@/data/maps";
+import { useGameStore } from "@/stores/gameStore";
 
 interface UseGameControlsProps {
   currentPlayer: { x: number; y: number; z: number } | null;
   movePlayer: (pos: { x: number; y: number; z: number }) => void;
   emitMove: (pos: { x: number; y: number; z: number }) => void;
+  emitChangeMap: (mapId: string) => void;
   onInventoryToggle: () => void;
   onInteractionMessage: (msg: string | null) => void;
 }
@@ -16,6 +18,7 @@ export function useGameControls({
   currentPlayer,
   movePlayer,
   emitMove,
+  emitChangeMap,
   onInventoryToggle,
   onInteractionMessage,
 }: UseGameControlsProps) {
@@ -31,12 +34,13 @@ export function useGameControls({
   movePlayerRef.current = movePlayer;
   const emitMoveRef = useRef(emitMove);
   emitMoveRef.current = emitMove;
+  const emitChangeMapRef = useRef(emitChangeMap);
+  emitChangeMapRef.current = emitChangeMap;
 
   const checkCollision = useCallback(
     (x: number, y: number, z: number) => {
-      if ((window as any).checkCollision) {
-        return (window as any).checkCollision(x, y, z);
-      }
+      const fn = useGameStore.getState().checkCollision;
+      if (fn) return fn(x, y, z);
       return true;
     },
     []
@@ -62,8 +66,9 @@ export function useGameControls({
             if (targetMap && obj.portalSpawn) {
               portalCooldownRef.current = Date.now() + 2000;
               setCurrentMap(targetMap);
+              emitChangeMapRef.current(targetMap.id);
               const spawnPos = { x: obj.portalSpawn.x, y: obj.portalSpawn.y, z: obj.portalSpawn.z };
-              (window as any).__teleportTo = spawnPos;
+              useGameStore.getState().setTeleportTo(spawnPos);
               movePlayerRef.current(spawnPos);
               onInteractionMessage(`Teleportado para ${targetMap.name}!`);
               setTimeout(() => onInteractionMessage(null), 3000);
@@ -125,9 +130,8 @@ export function useGameControls({
       }
       if (key === "escape") {
         event.preventDefault();
-        if ((window as any).__clearTarget) {
-          (window as any).__clearTarget();
-        }
+        const clearFn = useGameStore.getState().clearTarget;
+        if (clearFn) clearFn();
         return;
       }
 
@@ -185,19 +189,20 @@ export function useGameControls({
           initialized = true;
         }
 
-        const teleport = (window as any).__teleportTo as { x: number; y: number; z: number } | null;
+        const store = useGameStore.getState();
+        const teleport = store.teleportTo;
         if (teleport) {
           localPos.x = teleport.x;
           localPos.y = teleport.y;
           localPos.z = teleport.z;
-          (window as any).__teleportTo = null;
+          store.setTeleportTo(null);
         }
 
         let dx = 0;
         let dz = 0;
 
         if (keys.size > 0) {
-          const yaw = (window as any).__cameraYaw?.current ?? 0;
+          const yaw = useGameStore.getState().cameraYaw?.current ?? 0;
           const sinYaw = Math.sin(yaw);
           const cosYaw = Math.cos(yaw);
 
@@ -210,9 +215,9 @@ export function useGameControls({
         let keyMoving = dx !== 0 || dz !== 0;
 
         if (!keyMoving) {
-          const combatTarget = (window as any).__combatTarget as { id: string } | null;
+          const combatTarget = useGameStore.getState().combatTarget;
           if (combatTarget) {
-            const monsters = (window as any).__monstersData as Array<{ id: string; x: number; z: number; state: string }> | null;
+            const monsters = useGameStore.getState().monstersData;
             const target = monsters?.find(m => m.id === combatTarget.id);
             if (target && target.state !== "dead") {
               const tdx = target.x - localPos.x;
@@ -233,7 +238,7 @@ export function useGameControls({
           dx /= len;
           dz /= len;
 
-          (window as any).__moveDirection = { x: dx, z: dz };
+          useGameStore.getState().setMoveDirection({ x: dx, z: dz });
 
           const newX = localPos.x + dx * MOVE_SPEED * dt;
           const newZ = localPos.z + dz * MOVE_SPEED * dt;
@@ -249,7 +254,7 @@ export function useGameControls({
             checkAutoPortal(localPos.x, localPos.z);
           }
         } else {
-          (window as any).__moveDirection = null;
+          useGameStore.getState().setMoveDirection(null);
 
           if (wasMoving) {
             movePlayerRef.current({ x: localPos.x, y: localPos.y, z: localPos.z });
@@ -257,7 +262,7 @@ export function useGameControls({
         }
 
         wasMoving = isMoving;
-        (window as any).__localPlayerPos = localPos;
+        useGameStore.getState().setLocalPlayerPos({ ...localPos });
       }
 
       const loopEnd = performance.now();
@@ -277,8 +282,8 @@ export function useGameControls({
     animFrame = requestAnimationFrame(gameLoop);
     return () => {
       cancelAnimationFrame(animFrame);
-      (window as any).__moveDirection = null;
-      (window as any).__localPlayerPos = null;
+      useGameStore.getState().setMoveDirection(null);
+      useGameStore.getState().setLocalPlayerPos(null);
     };
   }, [checkCollision, checkAutoPortal]);
 

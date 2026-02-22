@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Player } from "@/types/game";
+import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
 
 interface UseCharacterAnimationConfig {
@@ -38,14 +39,15 @@ export function useCharacterAnimation({
   useFrame((state, delta) => {
     const frameStart = performance.now();
 
-    const atkSet = (window as any).__attackingPlayers as Set<string> | null;
-    if (atkSet?.has(player.id) && !isAttackingRef.current) {
+    const atkSet = useGameStore.getState().attackingPlayers;
+    if (atkSet.has(player.id) && !isAttackingRef.current) {
       isAttackingRef.current = true;
       attackAnim.current = 1.0;
     }
 
-    const moveDir = (window as any).__moveDirection as { x: number; z: number } | null;
-    const localPos = isCurrentPlayer ? (window as any).__localPlayerPos as { x: number; y: number; z: number } | null : null;
+    const gs = useGameStore.getState();
+    const moveDir = gs.moveDirection;
+    const localPos = isCurrentPlayer ? gs.localPlayerPos : null;
 
     const posX = localPos?.x ?? player.x;
     const posY = localPos?.y ?? player.y;

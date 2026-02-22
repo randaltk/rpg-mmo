@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Player, ChatMessage, MovementData, InteractionData, Map, Monster, CombatEvent } from '@/types/game';
+import { Player, ChatMessage, MovementData, InteractionData, Monster, CombatEvent } from '@/types/game';
+import { useGameStore } from '@/stores/gameStore';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -8,12 +9,12 @@ interface SocketContextType {
   players: Record<string, Player>;
   currentPlayer: Player | null;
   chatMessages: ChatMessage[];
-  currentMap: Map | null;
   monsters: Monster[];
   targetMonsterId: string | null;
   joinGame: (nickname: string, characterClass?: string) => void;
   movePlayer: (position: MovementData) => void;
   emitMove: (position: MovementData) => void;
+  emitChangeMap: (mapId: string) => void;
   sendChatMessage: (message: string) => void;
   interact: (interactionData: InteractionData) => void;
   equipItem: (itemId: string, slot: 'weapon' | 'armor' | 'accessory') => void;
@@ -33,7 +34,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [players, setPlayers] = useState<Record<string, Player>>({});
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [currentMap, setCurrentMap] = useState<Map | null>(null);
   const [monsters, setMonsters] = useState<Monster[]>([]);
   
   const [targetMonsterId, setTargetMonsterId] = useState<string | null>(null);
@@ -99,10 +99,6 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    newSocket.on('currentMap', (mapData: Map) => {
-      setCurrentMap(mapData);
-    });
-
     newSocket.on('newPlayer', (player: Player) => {
       setPlayers(prev => ({ ...prev, [player.id]: player }));
     });
@@ -125,7 +121,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on('monstersUpdate', (monsterList: Monster[]) => {
-      (window as any).__monstersData = monsterList;
+      useGameStore.getState().setMonstersData(monsterList);
 
       setMonsters(prev => {
         if (prev.length !== monsterList.length) return monsterList;
@@ -141,15 +137,12 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     });
 
     newSocket.on('combatEvent', (event: CombatEvent) => {
-      if (!((window as any).__combatEventsArr)) {
-        (window as any).__combatEventsArr = [];
-      }
-      (window as any).__combatEventsArr.push({ ...event, _spawnTime: performance.now() });
+      const store = useGameStore.getState();
+      store.pushCombatEvent({ ...event, _spawnTime: performance.now() });
 
       if (event.type === 'playerAttack') {
-        if (!(window as any).__attackingPlayers) (window as any).__attackingPlayers = new Set();
-        (window as any).__attackingPlayers.add(event.attackerId);
-        setTimeout(() => (window as any).__attackingPlayers?.delete(event.attackerId), 400);
+        store.addAttackingPlayer(event.attackerId);
+        setTimeout(() => useGameStore.getState().removeAttackingPlayer(event.attackerId), 400);
       }
     });
 
@@ -196,6 +189,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     socketRef.current?.emit('move', position);
   }, []);
 
+  const emitChangeMap = useCallback((mapId: string) => {
+    socketRef.current?.emit('changeMap', { mapId });
+  }, []);
+
   const movePlayer = useCallback((position: MovementData) => {
     if (socketRef.current && currentPlayer) {
       const updatedPlayer = { ...currentPlayer, ...position };
@@ -226,9 +223,9 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   }, [socket, currentPlayer]);
 
   const value = {
-    socket, isConnected, players, currentPlayer, chatMessages, currentMap,
+    socket, isConnected, players, currentPlayer, chatMessages,
     monsters, targetMonsterId,
-    joinGame, movePlayer, emitMove, sendChatMessage, interact, equipItem, attackMonster, setTargetMonsterId,
+    joinGame, movePlayer, emitMove, emitChangeMap, sendChatMessage, interact, equipItem, attackMonster, setTargetMonsterId,
   };
 
   return (

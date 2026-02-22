@@ -4,6 +4,7 @@ import React, { useRef, useState, useMemo, memo } from "react";
 import { useFrame, ThreeEvent } from "@react-three/fiber";
 import { Text, Box, Sphere, Cylinder, Cone } from "@react-three/drei";
 import { Monster } from "@/types/game";
+import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
 
 interface MonsterCharacterProps {
@@ -568,7 +569,7 @@ function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps)
     const fStart = performance.now();
     if (!groupRef.current || monster.state === "dead") return;
 
-    const liveData = (window as any).__monstersData as Array<{ id: string; x: number; z: number; state: string }> | null;
+    const liveData = useGameStore.getState().monstersData;
     const live = liveData?.find(m => m.id === monster.id);
     const mx = live?.x ?? monster.x;
     const mz = live?.z ?? monster.z;

@@ -1,7 +1,9 @@
-import { createServer } from "http";
+import { createServer, IncomingMessage, ServerResponse } from "http";
 import { parse } from "url";
 import next from "next";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
+import type { Player, Item, Monster, MonsterSpawn, CharacterClass, CombatEvent } from "@/types/game";
+import { MONSTER_SPAWNS } from "@/shared/monsterSpawns";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
@@ -10,26 +12,83 @@ const port = parseInt(process.env.PORT || "3000", 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-let players = {};
-let monsters = {};
+// --- Server-specific types ---
+
+interface ServerPlayer extends Player {
+  currentMapId: string;
+}
+
+interface ServerMonster extends Monster {
+  mapId: string;
+  spawnId: string;
+  spawnIndex: number;
+  lastAttackTime: number;
+  wanderTarget: { x: number; z: number } | null;
+  wanderCooldown: number;
+  hurtTime: number;
+  deathTime: number;
+}
+
+interface MonsterBaseStats {
+  hp: number;
+  attack: number;
+  defense: number;
+  expReward: number;
+  aggroRange: number;
+  attackRange: number;
+  moveSpeed: number;
+  attackCooldown: number;
+}
+
+interface Position {
+  x: number;
+  z: number;
+}
+
+// --- State ---
+
+let players: Record<string, ServerPlayer> = {};
+let monsters: Record<string, ServerMonster> = {};
 let monsterIdCounter = 0;
 
-const MONSTER_BASE_STATS = {
-  slime: { hp: 40, attack: 5, defense: 2, expReward: 15, aggroRange: 5, attackRange: 1.5, moveSpeed: 0.02, attackCooldown: 2000 },
-  goblin: { hp: 70, attack: 10, defense: 5, expReward: 30, aggroRange: 7, attackRange: 1.8, moveSpeed: 0.03, attackCooldown: 1500 },
-  wolf: { hp: 55, attack: 12, defense: 3, expReward: 25, aggroRange: 9, attackRange: 1.5, moveSpeed: 0.04, attackCooldown: 1200 },
-  skeleton: { hp: 80, attack: 14, defense: 7, expReward: 40, aggroRange: 8, attackRange: 2.0, moveSpeed: 0.025, attackCooldown: 1800 },
+const DEFAULT_MAP = "castle";
+const MONSTER_MAP = "town";
+
+const MONSTER_BASE_STATS: Record<Monster["type"], MonsterBaseStats> = {
+  slime:    { hp: 40,  attack: 5,  defense: 2, expReward: 15, aggroRange: 5, attackRange: 1.5, moveSpeed: 0.02,  attackCooldown: 2000 },
+  goblin:   { hp: 70,  attack: 10, defense: 5, expReward: 30, aggroRange: 7, attackRange: 1.8, moveSpeed: 0.03,  attackCooldown: 1500 },
+  wolf:     { hp: 55,  attack: 12, defense: 3, expReward: 25, aggroRange: 9, attackRange: 1.5, moveSpeed: 0.04,  attackCooldown: 1200 },
+  skeleton: { hp: 80,  attack: 14, defense: 7, expReward: 40, aggroRange: 8, attackRange: 2.0, moveSpeed: 0.025, attackCooldown: 1800 },
 };
 
-const MONSTER_SPAWNS = [
-  { id: "spawn_slime_1", type: "slime", x: 15, z: 20, count: 3, radius: 8, level: 1, color: "#4CAF50" },
-  { id: "spawn_slime_2", type: "slime", x: -25, z: -15, count: 3, radius: 8, level: 2, color: "#2196F3" },
-  { id: "spawn_slime_3", type: "slime", x: 30, z: -25, count: 2, radius: 6, level: 3, color: "#E91E63" },
-  { id: "spawn_goblin_1", type: "goblin", x: -35, z: 25, count: 2, radius: 6, level: 3, color: "#5D8C3E" },
-  { id: "spawn_goblin_2", type: "goblin", x: 40, z: 10, count: 2, radius: 6, level: 4, color: "#7A6A3A" },
-];
+const MONSTER_NAMES: Record<Monster["type"], string> = {
+  slime: "Slime",
+  goblin: "Goblin",
+  wolf: "Wolf",
+  skeleton: "Skeleton",
+};
 
-function spawnMonster(spawn, index) {
+// --- Helpers ---
+
+function mapRoom(mapId: string): string {
+  return `map:${mapId}`;
+}
+
+function distanceBetween(a: Position, b: Position): number {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2);
+}
+
+function getPlayersOnMap(mapId: string): ServerPlayer[] {
+  return Object.values(players).filter(p => p.currentMapId === mapId);
+}
+
+function getMonstersOnMap(mapId: string): ServerMonster[] {
+  return Object.values(monsters).filter(m => m.mapId === mapId);
+}
+
+// --- Monster Spawning ---
+
+function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster {
   const base = MONSTER_BASE_STATS[spawn.type];
   const levelMult = 1 + (spawn.level - 1) * 0.3;
   const angle = (index / spawn.count) * Math.PI * 2 + Math.random() * 0.5;
@@ -38,10 +97,11 @@ function spawnMonster(spawn, index) {
   const z = spawn.z + Math.sin(angle) * dist;
   const id = `monster_${monsterIdCounter++}`;
 
-  const monster = {
+  const monster: ServerMonster = {
     id,
-    name: spawn.type === "slime" ? "Slime" : spawn.type === "goblin" ? "Goblin" : spawn.type.charAt(0).toUpperCase() + spawn.type.slice(1),
+    name: MONSTER_NAMES[spawn.type],
     type: spawn.type,
+    mapId: MONSTER_MAP,
     x, y: 0, z,
     hp: Math.floor(base.hp * levelMult),
     maxHp: Math.floor(base.hp * levelMult),
@@ -51,7 +111,7 @@ function spawnMonster(spawn, index) {
     expReward: Math.floor(base.expReward * levelMult),
     color: spawn.color || "#4CAF50",
     state: "idle",
-    targetPlayerId: null,
+    targetPlayerId: undefined,
     spawnX: spawn.x,
     spawnZ: spawn.z,
     spawnId: spawn.id,
@@ -68,7 +128,7 @@ function spawnMonster(spawn, index) {
   return monster;
 }
 
-function initMonsters() {
+function initMonsters(): void {
   for (const spawn of MONSTER_SPAWNS) {
     for (let i = 0; i < spawn.count; i++) {
       spawnMonster(spawn, i);
@@ -77,14 +137,11 @@ function initMonsters() {
   console.log(`Spawned ${Object.keys(monsters).length} monsters`);
 }
 
-function distanceBetween(a, b) {
-  return Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2);
-}
+// --- Monster AI Loop ---
 
-function updateMonsters(io) {
+function updateMonsters(io: Server): void {
   const now = Date.now();
-  const playerList = Object.values(players);
-  const changed = [];
+  const changedMaps = new Set<string>();
 
   for (const monster of Object.values(monsters)) {
     if (monster.state === "dead") {
@@ -101,9 +158,9 @@ function updateMonsters(io) {
           monster.hp = Math.floor(base.hp * levelMult);
           monster.maxHp = Math.floor(base.hp * levelMult);
           monster.state = "idle";
-          monster.targetPlayerId = null;
+          monster.targetPlayerId = undefined;
           monster.hurtTime = 0;
-          changed.push(monster);
+          changedMaps.add(monster.mapId);
         }
       }
       continue;
@@ -116,10 +173,11 @@ function updateMonsters(io) {
     if (monster.state === "hurt") continue;
 
     const base = MONSTER_BASE_STATS[monster.type];
+    const mapPlayers = getPlayersOnMap(monster.mapId);
 
-    let nearestPlayer = null;
+    let nearestPlayer: ServerPlayer | null = null;
     let nearestDist = Infinity;
-    for (const p of playerList) {
+    for (const p of mapPlayers) {
       if (p.hp <= 0) continue;
       const d = distanceBetween(monster, p);
       if (d < nearestDist) { nearestDist = d; nearestPlayer = p; }
@@ -130,36 +188,36 @@ function updateMonsters(io) {
       monster.state = nearestDist <= base.attackRange ? "attacking" : "chasing";
     } else {
       if (monster.targetPlayerId) {
-        monster.targetPlayerId = null;
+        monster.targetPlayerId = undefined;
         monster.state = "idle";
-        changed.push(monster);
+        changedMaps.add(monster.mapId);
       }
     }
 
     if (monster.state === "chasing" && monster.targetPlayerId) {
       const target = players[monster.targetPlayerId];
-      if (target && target.hp > 0) {
+      if (target && target.hp > 0 && target.currentMapId === monster.mapId) {
         const dx = target.x - monster.x;
         const dz = target.z - monster.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
         if (dist > 0.1) {
           monster.x += (dx / dist) * base.moveSpeed;
           monster.z += (dz / dist) * base.moveSpeed;
-          changed.push(monster);
+          changedMaps.add(monster.mapId);
         }
         if (dist <= base.attackRange) {
           monster.state = "attacking";
         }
       } else {
-        monster.targetPlayerId = null;
+        monster.targetPlayerId = undefined;
         monster.state = "idle";
       }
     }
 
     if (monster.state === "attacking" && monster.targetPlayerId) {
       const target = players[monster.targetPlayerId];
-      if (!target || target.hp <= 0) {
-        monster.targetPlayerId = null;
+      if (!target || target.hp <= 0 || target.currentMapId !== monster.mapId) {
+        monster.targetPlayerId = undefined;
         monster.state = "idle";
         continue;
       }
@@ -178,7 +236,8 @@ function updateMonsters(io) {
 
         target.hp = Math.max(0, target.hp - damage);
 
-        const combatEvent = {
+        const room = mapRoom(monster.mapId);
+        io.to(room).emit("combatEvent", {
           type: "monsterAttack",
           attackerId: monster.id,
           targetId: target.id,
@@ -187,24 +246,35 @@ function updateMonsters(io) {
           targetHp: target.hp,
           targetMaxHp: target.maxHp,
           x: target.x, y: target.y + 1.5, z: target.z,
-        };
-        io.emit("combatEvent", combatEvent);
-        io.emit("playerMoved", target);
+        } satisfies CombatEvent);
+        io.to(room).emit("playerMoved", target);
 
         if (target.hp <= 0) {
-          monster.targetPlayerId = null;
+          monster.targetPlayerId = undefined;
           monster.state = "idle";
-          io.emit("combatEvent", {
+          io.to(room).emit("combatEvent", {
             type: "playerDeath",
             attackerId: monster.id,
             targetId: target.id,
             damage: 0,
             x: target.x, y: target.y + 1.5, z: target.z,
-          });
+          } satisfies CombatEvent);
+
           target.hp = target.maxHp;
           target.x = 0; target.y = 0; target.z = 0;
+
+          const targetSocket = io.sockets.sockets.get(target.id);
+          if (targetSocket && target.currentMapId !== DEFAULT_MAP) {
+            const oldRoom = mapRoom(target.currentMapId);
+            target.currentMapId = DEFAULT_MAP;
+            targetSocket.leave(oldRoom);
+            targetSocket.join(mapRoom(DEFAULT_MAP));
+            io.to(oldRoom).emit("removePlayer", target.id);
+            io.to(mapRoom(DEFAULT_MAP)).emit("newPlayer", target);
+          }
+
           setTimeout(() => {
-            io.emit("playerMoved", target);
+            io.to(mapRoom(target.currentMapId)).emit("playerMoved", target);
           }, 2000);
         }
       }
@@ -232,7 +302,7 @@ function updateMonsters(io) {
           monster.z += (dz / d) * base.moveSpeed * 0.5;
           monster.state = "wandering";
         }
-        changed.push(monster);
+        changedMaps.add(monster.mapId);
       }
     }
 
@@ -248,16 +318,18 @@ function updateMonsters(io) {
         monster.x += (dx / d) * base.moveSpeed * 0.5;
         monster.z += (dz / d) * base.moveSpeed * 0.5;
       }
-      changed.push(monster);
+      changedMaps.add(monster.mapId);
     }
   }
 
-  if (changed.length > 0) {
-    io.emit("monstersUpdate", Object.values(monsters));
-  }
+  changedMaps.forEach(mapId => {
+    io.to(mapRoom(mapId)).emit("monstersUpdate", getMonstersOnMap(mapId));
+  });
 }
 
-function setupSocketIO(httpServer) {
+// --- Socket.IO Setup ---
+
+function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
   const io = new Server(httpServer, {
     cors: { origin: "*" },
     path: "/socket.io",
@@ -265,63 +337,98 @@ function setupSocketIO(httpServer) {
   });
 
   initMonsters();
-
   setInterval(() => updateMonsters(io), 250);
 
-  io.on("connection", (socket) => {
+  io.on("connection", (socket: Socket) => {
     console.log("Player connected:", socket.id);
 
-    socket.on("join", ({ nickname, characterClass }) => {
-      const color =
-        "#" +
-        Math.floor(Math.random() * 16777215)
-          .toString(16)
-          .padStart(6, "0");
+    socket.on("join", ({ nickname, characterClass }: { nickname: string; characterClass?: string }) => {
+      const color = "#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0");
 
-      players[socket.id] = {
+      const player: ServerPlayer = {
         id: socket.id,
         nickname,
-        x: 0,
-        y: 0,
-        z: 0,
+        x: 0, y: 0, z: 0,
         color,
-        characterClass: characterClass || "knight",
+        characterClass: (characterClass || "knight") as CharacterClass,
+        currentMapId: DEFAULT_MAP,
         level: 1,
         hp: 100,
         maxHp: 100,
         attack: 10,
         defense: 5,
         experience: 0,
-        inventory: [
-          {
-            id: "potion1",
-            name: "Poção de Cura",
-            type: "consumable",
-            rarity: "common",
-            stats: { hp: 50 },
-            description: "Restaura 50 pontos de vida",
-            icon: "🧪",
-          },
-        ],
-        equipped: { weapon: null, armor: null, accessory: null },
+        inventory: [{
+          id: "potion1",
+          name: "Poção de Cura",
+          type: "consumable",
+          rarity: "common",
+          stats: { hp: 50 },
+          description: "Restaura 50 pontos de vida",
+          icon: "🧪",
+        }],
+        equipped: { weapon: undefined, armor: undefined, accessory: undefined },
       };
 
-      socket.emit("currentPlayers", players);
-      socket.broadcast.emit("newPlayer", players[socket.id]);
-      socket.emit("monstersUpdate", Object.values(monsters));
+      players[socket.id] = player;
+      socket.join(mapRoom(DEFAULT_MAP));
+
+      const mapPlayers: Record<string, ServerPlayer> = {};
+      for (const [id, p] of Object.entries(players)) {
+        if (p.currentMapId === player.currentMapId) {
+          mapPlayers[id] = p;
+        }
+      }
+      socket.emit("currentPlayers", mapPlayers);
+      socket.to(mapRoom(player.currentMapId)).emit("newPlayer", player);
+      socket.emit("monstersUpdate", getMonstersOnMap(player.currentMapId));
     });
 
-    socket.on("move", (pos) => {
-      if (players[socket.id]) {
-        players[socket.id] = { ...players[socket.id], ...pos };
-        socket.broadcast.emit("playerMoved", players[socket.id]);
+    socket.on("changeMap", ({ mapId }: { mapId: string }) => {
+      const player = players[socket.id];
+      if (!player || player.currentMapId === mapId) return;
+
+      const oldMapId = player.currentMapId;
+      player.currentMapId = mapId;
+
+      socket.leave(mapRoom(oldMapId));
+      socket.join(mapRoom(mapId));
+
+      socket.to(mapRoom(oldMapId)).emit("removePlayer", socket.id);
+      socket.to(mapRoom(mapId)).emit("newPlayer", player);
+
+      const mapPlayers: Record<string, ServerPlayer> = {};
+      for (const [id, p] of Object.entries(players)) {
+        if (p.currentMapId === mapId) {
+          mapPlayers[id] = p;
+        }
+      }
+      socket.emit("currentPlayers", mapPlayers);
+      socket.emit("monstersUpdate", getMonstersOnMap(mapId));
+
+      for (const m of Object.values(monsters)) {
+        if (m.targetPlayerId === socket.id && m.mapId !== mapId) {
+          m.targetPlayerId = undefined;
+          m.state = "idle";
+        }
       }
     });
 
-    socket.on("attackMonster", ({ monsterId }) => {
+    socket.on("move", (pos: { x: number; y: number; z: number }) => {
+      const player = players[socket.id];
+      if (player) {
+        player.x = pos.x;
+        player.y = pos.y;
+        player.z = pos.z;
+        socket.to(mapRoom(player.currentMapId)).emit("playerMoved", player);
+      }
+    });
+
+    socket.on("attackMonster", ({ monsterId }: { monsterId: string }) => {
       const player = players[socket.id];
       const monster = monsters[monsterId];
       if (!player || !monster || monster.state === "dead" || player.hp <= 0) return;
+      if (player.currentMapId !== monster.mapId) return;
 
       const dist = distanceBetween(player, monster);
       if (dist > 3) return;
@@ -337,7 +444,9 @@ function setupSocketIO(httpServer) {
       monster.state = "hurt";
       monster.targetPlayerId = socket.id;
 
-      const combatEvent = {
+      const room = mapRoom(monster.mapId);
+
+      io.to(room).emit("combatEvent", {
         type: "playerAttack",
         attackerId: socket.id,
         targetId: monsterId,
@@ -346,8 +455,7 @@ function setupSocketIO(httpServer) {
         targetHp: monster.hp,
         targetMaxHp: monster.maxHp,
         x: monster.x, y: 1.0, z: monster.z,
-      };
-      io.emit("combatEvent", combatEvent);
+      } satisfies CombatEvent);
 
       if (monster.hp <= 0) {
         monster.state = "dead";
@@ -365,64 +473,58 @@ function setupSocketIO(httpServer) {
           io.emit("chat", { id: "system", msg: `${player.nickname} subiu para o nível ${player.level}!`, type: "system" });
         }
 
-        io.emit("combatEvent", {
+        io.to(room).emit("combatEvent", {
           type: "monsterDeath",
           attackerId: socket.id,
           targetId: monsterId,
           damage: 0,
           expGained: monster.expReward,
           x: monster.x, y: 1.0, z: monster.z,
-        });
+        } satisfies CombatEvent);
 
         socket.emit("playerUpdated", player);
       }
 
-      io.emit("monstersUpdate", Object.values(monsters));
+      io.to(room).emit("monstersUpdate", getMonstersOnMap(monster.mapId));
     });
 
-    socket.on("chat", (msg) => {
+    socket.on("chat", (msg: string) => {
       io.emit("chat", { id: socket.id, msg, type: "normal" });
     });
 
     socket.on("interact", () => {
-      socket.emit("interactionResult", {
-        success: true,
-        message: "Interação realizada!",
-      });
+      socket.emit("interactionResult", { success: true, message: "Interação realizada!" });
     });
 
-    socket.on("equipItem", ({ itemId, slot }) => {
-      if (players[socket.id]) {
-        const player = players[socket.id];
-        const item = player.inventory.find((i) => i.id === itemId);
+    socket.on("equipItem", ({ itemId, slot }: { itemId: string; slot: "weapon" | "armor" | "accessory" }) => {
+      const player = players[socket.id];
+      if (!player) return;
 
-        if (
-          item &&
-          (item.type === "weapon" ||
-            item.type === "armor" ||
-            item.type === "accessory")
-        ) {
-          player.inventory = player.inventory.filter((i) => i.id !== itemId);
-          player.equipped[slot] = item;
+      const item = player.inventory.find((i: Item) => i.id === itemId);
+      if (!item || (item.type !== "weapon" && item.type !== "armor" && item.type !== "accessory")) return;
 
-          if (item.stats.attack) player.attack += item.stats.attack;
-          if (item.stats.defense) player.defense += item.stats.defense;
-          if (item.stats.hp) player.maxHp += item.stats.hp;
+      player.inventory = player.inventory.filter((i: Item) => i.id !== itemId);
+      player.equipped[slot] = item;
 
-          socket.emit("playerUpdated", player);
-          socket.broadcast.emit("playerMoved", player);
-        }
-      }
+      if (item.stats.attack) player.attack += item.stats.attack;
+      if (item.stats.defense) player.defense += item.stats.defense;
+      if (item.stats.hp) player.maxHp += item.stats.hp;
+
+      socket.emit("playerUpdated", player);
+      socket.to(mapRoom(player.currentMapId)).emit("playerMoved", player);
     });
 
     socket.on("disconnect", () => {
       console.log("Player left:", socket.id);
+      const player = players[socket.id];
+      if (player) {
+        io.to(mapRoom(player.currentMapId)).emit("removePlayer", socket.id);
+      }
       delete players[socket.id];
-      io.emit("removePlayer", socket.id);
 
       for (const m of Object.values(monsters)) {
         if (m.targetPlayerId === socket.id) {
-          m.targetPlayerId = null;
+          m.targetPlayerId = undefined;
           m.state = "idle";
         }
       }
@@ -432,9 +534,11 @@ function setupSocketIO(httpServer) {
   return io;
 }
 
+// --- Server Start ---
+
 app.prepare().then(() => {
-  const httpServer = createServer((req, res) => {
-    const parsedUrl = parse(req.url, true);
+  const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+    const parsedUrl = parse(req.url!, true);
     handle(req, res, parsedUrl);
   });
 
