@@ -4,6 +4,8 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { GameMap } from "@/types/game";
 import { allMaps } from "@/data/maps";
 import { useGameStore } from "@/stores/gameStore";
+import { getHeightAt } from "@/lib/worldgen/terrain";
+import { getBiomeAt } from "@/lib/worldgen/biomes";
 
 interface UseGameControlsProps {
   currentPlayer: { x: number; y: number; z: number; currentMapId?: string } | null;
@@ -253,6 +255,21 @@ export function useGameControls({
           if (checkCollision(newX, localPos.y, newZ)) {
             localPos.x = newX;
             localPos.z = newZ;
+
+            const map = currentMapRef.current;
+            if (map.heightmap && map.heightmapResolution) {
+              localPos.y = getHeightAt(
+                localPos.x, localPos.z,
+                map.heightmap, map.width, map.height, map.heightmapResolution,
+              );
+            }
+            if (map.biomeMap && map.biomeMapResolution) {
+              const biome = getBiomeAt(
+                localPos.x, localPos.z,
+                map.biomeMap, map.width, map.height, map.biomeMapResolution,
+              );
+              useGameStore.getState().setPlayerBiome(biome);
+            }
           }
 
           if (now - lastEmitTime > EMIT_INTERVAL) {

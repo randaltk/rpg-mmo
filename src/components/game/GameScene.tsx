@@ -3,7 +3,7 @@
 import React, { useRef, useMemo, useCallback, useEffect, useState, memo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Stars, Sphere, ContactShadows } from "@react-three/drei";
-import { EffectComposer, Bloom, SSAO, Vignette } from "@react-three/postprocessing";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import { useSocket } from "@/hooks/useSocket";
 import { useGameControls } from "@/hooks/useGameControls";
@@ -17,6 +17,8 @@ import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
 
 import { PerfMonitor } from "@/utils/perfMonitor";
+import { BIOME_CONFIGS } from "@/lib/worldgen/biome-configs";
+import type { BiomeType } from "@/types/game";
 
 const perfLog = new PerfMonitor("GameScene");
 
@@ -128,7 +130,36 @@ const Clouds = memo(function Clouds() {
   );
 });
 
-const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTown, isIndoor }: { isCave: boolean; isCastle: boolean; isTown: boolean; isIndoor: boolean }) {
+const BiomeFog = memo(function BiomeFog({ biome }: { biome: BiomeType }) {
+  const fogRef = useRef<THREE.Fog>(null);
+  const config = BIOME_CONFIGS[biome];
+
+  useFrame((_, delta) => {
+    if (!fogRef.current) return;
+    const target = new THREE.Color(config.fogColor);
+    fogRef.current.color.lerp(target, Math.min(1, delta * 2));
+    fogRef.current.near += (config.fogNear - fogRef.current.near) * Math.min(1, delta * 2);
+    fogRef.current.far += (config.fogFar - fogRef.current.far) * Math.min(1, delta * 2);
+  });
+
+  return <fog ref={fogRef} attach="fog" args={[config.fogColor, config.fogNear, config.fogFar]} />;
+});
+
+const BiomeAmbient = memo(function BiomeAmbient({ biome }: { biome: BiomeType }) {
+  const lightRef = useRef<THREE.AmbientLight>(null);
+  const config = BIOME_CONFIGS[biome];
+
+  useFrame((_, delta) => {
+    if (!lightRef.current) return;
+    const target = new THREE.Color(config.ambientColor);
+    lightRef.current.color.lerp(target, Math.min(1, delta * 2));
+    lightRef.current.intensity += (config.ambientIntensity - lightRef.current.intensity) * Math.min(1, delta * 2);
+  });
+
+  return <ambientLight ref={lightRef} intensity={config.ambientIntensity} color={config.ambientColor} />;
+});
+
+const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTown, isIndoor, playerBiome }: { isCave: boolean; isCastle: boolean; isTown: boolean; isIndoor: boolean; playerBiome: BiomeType }) {
   return (
     <>
       {!isCastle && <SkyDome isCave={isCave} />}
@@ -172,10 +203,14 @@ const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTo
         color={isCastle ? "#FFD0A0" : isCave ? "#1a1a3a" : "#FFE4C4"}
       />
 
-      <ambientLight
-        intensity={isCastle ? 0.12 : isCave ? 0.08 : 0.25}
-        color={isCastle ? "#2A1A0A" : isCave ? "#0d0d2b" : "#FFF8F0"}
-      />
+      {isTown ? (
+        <BiomeAmbient biome={playerBiome} />
+      ) : (
+        <ambientLight
+          intensity={isCastle ? 0.12 : isCave ? 0.08 : 0.25}
+          color={isCastle ? "#2A1A0A" : isCave ? "#0d0d2b" : "#FFF8F0"}
+        />
+      )}
 
       {isCave && (
         <>
@@ -195,25 +230,32 @@ const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTo
         </>
       )}
 
-      <fog
-        attach="fog"
-        args={[
-          isCastle ? "#1A1510" : isCave ? "#0a0a1a" : "#c8ddf0",
-          isCastle ? 8 : isCave ? 20 : 40,
-          isCastle ? 30 : isCave ? 65 : 160,
-        ]}
-      />
+      {isTown ? (
+        <BiomeFog biome={playerBiome} />
+      ) : (
+        <fog
+          attach="fog"
+          args={[
+            isCastle ? "#1A1510" : isCave ? "#0a0a1a" : "#c8ddf0",
+            isCastle ? 8 : isCave ? 20 : 40,
+            isCastle ? 30 : isCave ? 65 : 160,
+          ]}
+        />
+      )}
 
-      <FloatingParticles isCave={isIndoor} />
+      {isIndoor && <FloatingParticles isCave={isIndoor} />}
 
-      <ContactShadows
-        position={[0, 0.01, 0]}
-        opacity={isCave ? 0.3 : isCastle ? 0.4 : 0.55}
-        scale={40}
-        blur={1.5}
-        far={4}
-        color={isCastle ? "#1A0A00" : isCave ? "#000020" : "#2A4020"}
-      />
+      {isIndoor && (
+        <ContactShadows
+          position={[0, 0.01, 0]}
+          opacity={isCave ? 0.3 : 0.4}
+          scale={30}
+          blur={1.5}
+          far={4}
+          resolution={256}
+          color={isCastle ? "#1A0A00" : "#000020"}
+        />
+      )}
     </>
   );
 });
@@ -222,20 +264,10 @@ const PostProcessing = memo(function PostProcessing({ isCave, isCastle }: { isCa
   return (
     <EffectComposer multisampling={0}>
       <Bloom
-        intensity={isCave ? 1.2 : isCastle ? 0.8 : 0.4}
-        luminanceThreshold={isCave ? 0.6 : 0.8}
+        intensity={isCave ? 1.2 : isCastle ? 0.8 : 0.3}
+        luminanceThreshold={isCave ? 0.6 : 0.85}
         luminanceSmoothing={0.4}
         mipmapBlur
-      />
-      <SSAO
-        blendFunction={BlendFunction.MULTIPLY}
-        samples={16}
-        radius={5}
-        intensity={isCave ? 25 : isCastle ? 20 : 12}
-        worldDistanceThreshold={1.0}
-        worldDistanceFalloff={0.0}
-        worldProximityThreshold={0.4}
-        worldProximityFalloff={0.1}
       />
       <Vignette
         offset={0.3}
@@ -374,6 +406,7 @@ export default function GameScene({
   const isCastle = currentMap.id === "castle";
   const isTown = currentMap.id === "town";
   const isIndoor = isCave || isCastle;
+  const playerBiome = useGameStore((s) => s.playerBiome);
 
   const cameraTarget = currentPlayer
     ? { x: currentPlayer.x, y: currentPlayer.y, z: currentPlayer.z }
@@ -387,7 +420,7 @@ export default function GameScene({
       <FollowCamera target={cameraTarget} />
       <CombatController />
 
-      <SceneEnvironment isCave={isCave} isCastle={isCastle} isTown={isTown} isIndoor={isIndoor} />
+      <SceneEnvironment isCave={isCave} isCastle={isCastle} isTown={isTown} isIndoor={isIndoor} playerBiome={playerBiome} />
 
       <MemoizedMapSystem currentMap={currentMap} />
 
@@ -420,15 +453,22 @@ export default function GameScene({
         />
       )}
 
-      {/* Monsters */}
-      {monsters.map((monster) => (
-        <MonsterCharacter
-          key={monster.id}
-          monster={monster}
-          isTarget={monster.id === targetMonsterId}
-          onClick={handleMonsterClick}
-        />
-      ))}
+      {/* Monsters — view distance culled */}
+      {monsters.map((monster) => {
+        if (currentPlayer) {
+          const dx = monster.x - currentPlayer.x;
+          const dz = monster.z - currentPlayer.z;
+          if (dx * dx + dz * dz > 4900 && monster.id !== targetMonsterId) return null;
+        }
+        return (
+          <MonsterCharacter
+            key={monster.id}
+            monster={monster}
+            isTarget={monster.id === targetMonsterId}
+            onClick={handleMonsterClick}
+          />
+        );
+      })}
 
       <DamageNumberManager />
 

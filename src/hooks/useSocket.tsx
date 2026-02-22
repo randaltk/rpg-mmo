@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Player, ChatMessage, MovementData, InteractionData, Monster, CombatEvent } from '@/types/game';
+import type { WorldSeed } from '@/lib/worldgen/seed';
 import { useGameStore } from '@/stores/gameStore';
 
 interface SocketContextType {
@@ -143,6 +144,11 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    const handleWorldSeed = (seed: WorldSeed) => {
+      console.log('[WorldGen] Received seed from server:', seed);
+      useGameStore.getState().setWorldSeed(seed);
+    };
+
     newSocket.on('connect', handleConnect);
     newSocket.on('disconnect', handleDisconnect);
     newSocket.on('reconnect', handleReconnect);
@@ -154,6 +160,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     newSocket.on('monstersUpdate', handleMonstersUpdate);
     newSocket.on('combatEvent', handleCombatEvent);
     newSocket.on('playerUpdated', handlePlayerUpdated);
+    newSocket.on('worldSeed', handleWorldSeed);
 
     return () => {
       newSocket.off('connect', handleConnect);
@@ -167,6 +174,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       newSocket.off('monstersUpdate', handleMonstersUpdate);
       newSocket.off('combatEvent', handleCombatEvent);
       newSocket.off('playerUpdated', handlePlayerUpdated);
+      newSocket.off('worldSeed', handleWorldSeed);
       newSocket.disconnect();
     };
   }, []);

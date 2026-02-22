@@ -1,4 +1,15 @@
+import type { WorldSeed } from '@/lib/worldgen/seed';
+
 export type CharacterClass = 'knight' | 'paladin' | 'rogue' | 'assassin' | 'ranger' | 'wizard' | 'sorcerer' | 'priest' | 'monk';
+
+// --- Procedural World Types ---
+
+export type BiomeType = 'plains' | 'forest' | 'swamp' | 'rocky' | 'ruins';
+
+export type TreeVariant = 'oak' | 'pine' | 'willow' | 'dead' | 'mushroom' | 'cherry' | 'baobab';
+export type RockVariant = 'boulder' | 'crystal' | 'stacked' | 'mossy' | 'flat';
+export type StructureVariant = 'ruins_pillar' | 'ruins_wall' | 'camp' | 'totem' | 'altar';
+export type MonsterVariant = 'fire' | 'ice' | 'poison' | 'golden' | 'warrior' | 'archer' | 'shaman' | 'chief';
 
 export interface Player {
   id: string;
@@ -52,7 +63,7 @@ export interface NPC {
 
 export interface MapObject {
   id: string;
-  type: 'wall' | 'tree' | 'rock' | 'chest' | 'door' | 'item' | 'portal';
+  type: 'wall' | 'tree' | 'rock' | 'chest' | 'door' | 'item' | 'portal' | 'structure';
   x: number;
   y: number;
   z: number;
@@ -61,8 +72,12 @@ export interface MapObject {
   depth: number;
   solid: boolean;
   item?: Item;
-  portalTo?: string; // ID do mapa de destino para portais
-  portalSpawn?: { x: number; y: number; z: number }; // Posição de spawn no mapa de destino
+  portalTo?: string;
+  portalSpawn?: { x: number; y: number; z: number };
+  variant?: TreeVariant | RockVariant | StructureVariant;
+  biome?: BiomeType;
+  scale?: number;
+  colorOverride?: string;
 }
 
 export interface GameMap {
@@ -74,6 +89,11 @@ export interface GameMap {
   npcs: NPC[];
   spawnPoints: { x: number; y: number; z: number }[];
   monsterSpawns?: MonsterSpawn[];
+  seed?: WorldSeed;
+  heightmap?: Float32Array;
+  heightmapResolution?: number;
+  biomeMap?: BiomeType[];
+  biomeMapResolution?: number;
 }
 
 export interface GameState {
@@ -119,6 +139,8 @@ export interface Monster {
   spawnX: number;
   spawnZ: number;
   respawnTime: number;
+  variant?: MonsterVariant;
+  biome?: BiomeType;
 }
 
 export interface MonsterSpawn {
@@ -130,6 +152,8 @@ export interface MonsterSpawn {
   radius: number;
   level: number;
   color?: string;
+  variant?: MonsterVariant;
+  biome?: BiomeType;
 }
 
 export interface CombatEvent {

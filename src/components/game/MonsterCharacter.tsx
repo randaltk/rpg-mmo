@@ -6,6 +6,9 @@ import { Text, Box, Sphere, Cylinder, Cone } from "@react-three/drei";
 import { Monster } from "@/types/game";
 import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
+import { WolfModel } from "./monsters/WolfModel";
+import { SkeletonModel } from "./monsters/SkeletonModel";
+import { VariantEffects, getVariantColor, getVariantScale } from "./monsters/VariantEffects";
 
 interface MonsterCharacterProps {
   monster: Monster;
@@ -589,6 +592,26 @@ function GoblinModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: bool
   );
 }
 
+function MonsterModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: boolean }) {
+  const variantMonster = useMemo(() => {
+    if (!monster.variant || !['fire', 'ice', 'poison', 'golden'].includes(monster.variant)) return monster;
+    return { ...monster, color: getVariantColor(monster.color, monster.variant) };
+  }, [monster, monster.variant]);
+
+  switch (monster.type) {
+    case 'slime':
+      return <SlimeModel monster={variantMonster} hurtFlash={hurtFlash} />;
+    case 'goblin':
+      return <GoblinModel monster={variantMonster} hurtFlash={hurtFlash} />;
+    case 'wolf':
+      return <WolfModel monster={variantMonster} hurtFlash={hurtFlash} />;
+    case 'skeleton':
+      return <SkeletonModel monster={variantMonster} hurtFlash={hurtFlash} />;
+    default:
+      return <SlimeModel monster={variantMonster} hurtFlash={hurtFlash} />;
+  }
+}
+
 function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps) {
   const groupRef = useRef<THREE.Group>(null);
   const targetRotation = useRef(0);
@@ -642,7 +665,9 @@ function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps)
   };
 
   const hpPercent = monster.hp / monster.maxHp;
-  const uiHeight = monster.type === "slime" ? 1.3 : 1.8;
+  const variantSc = getVariantScale(monster.variant);
+  const baseHeight = monster.type === 'slime' ? 1.3 : monster.type === 'wolf' ? 1.2 : 1.8;
+  const uiHeight = baseHeight * variantSc;
 
   return (
     <group
@@ -655,11 +680,10 @@ function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps)
         <meshBasicMaterial />
       </mesh>
 
-      {monster.type === "slime" ? (
-        <SlimeModel monster={monster} hurtFlash={hurtFlash} />
-      ) : (
-        <GoblinModel monster={monster} hurtFlash={hurtFlash} />
-      )}
+      <group scale={getVariantScale(monster.variant)}>
+        <MonsterModel monster={monster} hurtFlash={hurtFlash} />
+        <VariantEffects variant={monster.variant} monsterHeight={monster.type === 'slime' ? 0.8 : monster.type === 'wolf' ? 0.7 : 1.5} />
+      </group>
 
       {monster.state !== "dead" && (
         <>

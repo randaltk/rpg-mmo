@@ -1,68 +1,58 @@
-import { GameMap, MapObject, MonsterSpawn } from "@/types/game";
-import { seededRandom } from "@/utils/seededRandom";
-import { MONSTER_SPAWNS } from "@/shared/monsterSpawns";
+import { GameMap } from "@/types/game";
+import { generateHeightmap, getHeightAt, DEFAULT_TERRAIN_CONFIG } from "@/lib/worldgen/terrain";
+import { generateBiomeMap, DEFAULT_BIOME_CONFIG } from "@/lib/worldgen/biomes";
+import { generateObjects } from "@/lib/worldgen/objects";
+import { generateMonsterSpawns, DEFAULT_MONSTER_CONFIG } from "@/lib/worldgen/monsters";
 
-function generateTrees(): MapObject[] {
-  const trees: MapObject[] = [];
-  for (let i = 0; i < 60; i++) {
-    const angle = seededRandom(i * 3.7 + 10) * Math.PI * 2;
-    const dist = 8 + seededRandom(i * 5.3 + 20) * 55;
-    const x = Math.cos(angle) * dist;
-    const z = Math.sin(angle) * dist;
-    const h = 3 + seededRandom(i * 2.1 + 30) * 3;
-    trees.push({
-      id: `tree_${i}`, type: "tree", x, y: 0, z,
-      width: 1, height: h, depth: 1, solid: false,
-    });
-  }
-  return trees;
+const TOWN_SEED = 42;
+const MAP_W = 400;
+const MAP_H = 400;
+const RES = 128;
+const terrainConfig = { ...DEFAULT_TERRAIN_CONFIG, width: MAP_W, height: MAP_H, resolution: RES };
+const townHeightmap = generateHeightmap(TOWN_SEED, terrainConfig);
+const townBiomeMap = generateBiomeMap(TOWN_SEED, { ...DEFAULT_BIOME_CONFIG, width: MAP_W, height: MAP_H, resolution: RES });
+
+function terrainY(x: number, z: number): number {
+  return getHeightAt(x, z, townHeightmap, MAP_W, MAP_H, RES);
 }
 
-function generateRocks(): MapObject[] {
-  const rocks: MapObject[] = [];
-  for (let i = 0; i < 25; i++) {
-    const angle = seededRandom(i * 7.1 + 50) * Math.PI * 2;
-    const dist = 10 + seededRandom(i * 4.9 + 60) * 50;
-    rocks.push({
-      id: `rock_${i}`, type: "rock",
-      x: Math.cos(angle) * dist, y: 0, z: Math.sin(angle) * dist,
-      width: 0.8 + seededRandom(i * 3.3 + 70) * 1.5,
-      height: 0.5 + seededRandom(i * 2.7 + 80) * 1.5,
-      depth: 0.8 + seededRandom(i * 3.3 + 90) * 1.5,
-      solid: false,
-    });
-  }
-  return rocks;
-}
+const proceduralObjects = generateObjects(townHeightmap, TOWN_SEED, undefined, townBiomeMap);
+const proceduralSpawns = generateMonsterSpawns(
+  townBiomeMap,
+  townHeightmap,
+  TOWN_SEED,
+  { ...DEFAULT_MONSTER_CONFIG, mapWidth: MAP_W, mapHeight: MAP_H, heightmapResolution: RES },
+);
 
 export const townMap: GameMap = {
   id: "town",
   name: "Planícies de Aldoria",
-  width: 150,
-  height: 150,
+  width: MAP_W,
+  height: MAP_H,
+  heightmap: townHeightmap,
+  heightmapResolution: RES,
+  biomeMap: townBiomeMap,
+  biomeMapResolution: RES,
   objects: [
-    ...generateTrees(),
-    ...generateRocks(),
+    ...proceduralObjects,
 
-    // Chests scattered around
     {
-      id: "town_chest1", type: "chest", x: -20, y: 0, z: 15, width: 1, height: 1, depth: 1, solid: false,
+      id: "town_chest1", type: "chest", x: -20, y: terrainY(-20, 15), z: 15, width: 1, height: 1, depth: 1, solid: false,
       item: { id: "gold_coin", name: "Moeda de Ouro", type: "consumable", rarity: "common", stats: { hp: 10 }, description: "Uma moeda de ouro valiosa.", icon: "💰" },
     },
     {
-      id: "town_chest2", type: "chest", x: 25, y: 0, z: -18, width: 1, height: 1, depth: 1, solid: false,
+      id: "town_chest2", type: "chest", x: 25, y: terrainY(25, -18), z: -18, width: 1, height: 1, depth: 1, solid: false,
       item: { id: "health_potion", name: "Poção de Vida", type: "consumable", rarity: "uncommon", stats: { hp: 50 }, description: "Restaura 50 de HP.", icon: "💊" },
     },
     {
-      id: "town_chest3", type: "chest", x: -35, y: 0, z: -30, width: 1, height: 1, depth: 1, solid: false,
+      id: "town_chest3", type: "chest", x: -35, y: terrainY(-35, -30), z: -30, width: 1, height: 1, depth: 1, solid: false,
       item: { id: "iron_sword", name: "Espada de Ferro", type: "weapon", rarity: "uncommon", stats: { attack: 8 }, description: "Uma espada sólida de ferro.", icon: "⚔️" },
     },
     {
-      id: "town_chest4", type: "chest", x: 40, y: 0, z: 35, width: 1, height: 1, depth: 1, solid: false,
+      id: "town_chest4", type: "chest", x: 40, y: terrainY(40, 35), z: 35, width: 1, height: 1, depth: 1, solid: false,
       item: { id: "leather_armor", name: "Armadura de Couro", type: "armor", rarity: "uncommon", stats: { defense: 5 }, description: "Proteção leve e flexível.", icon: "🛡️" },
     },
 
-    // Portal back to castle
     {
       id: "portal_castle", type: "portal", x: 0, y: 0, z: 0, width: 2, height: 3, depth: 1, solid: false,
       portalTo: "castle", portalSpawn: { x: 8, y: 0, z: 5 },
@@ -76,5 +66,5 @@ export const townMap: GameMap = {
     { id: "town_healer", name: "Curandeira", x: 12, y: 0, z: 15, type: "quest", dialogue: ["Posso curar suas feridas.", "Traga ervas e preparo uma poção."], isMoving: false, movementPattern: "static" },
   ],
   spawnPoints: [{ x: 0, y: 0, z: 0 }],
-  monsterSpawns: MONSTER_SPAWNS as MonsterSpawn[],
+  monsterSpawns: proceduralSpawns,
 };

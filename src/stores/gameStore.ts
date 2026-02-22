@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import type { WorldSeed } from "@/lib/worldgen/seed";
+import type { BiomeType } from "@/types/game";
 
 export interface Position3D {
   x: number;
@@ -39,6 +41,8 @@ interface GameState {
   cameraYaw: { current: number } | null;
   teleportTo: Position3D | null;
   checkCollision: ((x: number, y: number, z: number) => boolean) | null;
+  worldSeed: WorldSeed | null;
+  playerBiome: BiomeType;
 }
 
 interface GameActions {
@@ -54,6 +58,8 @@ interface GameActions {
   setCameraYaw: (ref: { current: number }) => void;
   setTeleportTo: (pos: Position3D | null) => void;
   setCheckCollision: (fn: (x: number, y: number, z: number) => boolean) => void;
+  setWorldSeed: (seed: WorldSeed) => void;
+  setPlayerBiome: (biome: BiomeType) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -69,6 +75,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   cameraYaw: null,
   teleportTo: null,
   checkCollision: null,
+  worldSeed: null,
+  playerBiome: 'plains' as BiomeType,
 
   setLocalPlayerPos: (pos) => set({ localPlayerPos: pos }),
   setMoveDirection: (dir) => set({ moveDirection: dir }),
@@ -104,4 +112,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setCameraYaw: (ref) => set({ cameraYaw: ref }),
   setTeleportTo: (pos) => set({ teleportTo: pos }),
   setCheckCollision: (fn) => set({ checkCollision: fn }),
+  setWorldSeed: (seed) => set({ worldSeed: seed }),
+  setPlayerBiome: (biome) => set((s) => s.playerBiome !== biome ? { playerBiome: biome } : s),
 }));

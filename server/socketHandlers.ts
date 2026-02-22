@@ -3,7 +3,7 @@ import { Server, Socket } from "socket.io";
 import type { Item, CharacterClass, CombatEvent } from "@/types/game";
 import type { ServerPlayer } from "./types";
 import {
-  players, monsters,
+  players, monsters, worldSeed,
   DEFAULT_MAP, mapRoom, distanceBetween, getMonstersOnMap,
 } from "./state";
 import {
@@ -73,6 +73,7 @@ export function setupSocketIO(httpServer: ReturnType<typeof createServer>): Serv
         }
       }
       socket.emit("currentPlayers", mapPlayers);
+      socket.emit("worldSeed", worldSeed);
       socket.to(mapRoom(player.currentMapId)).emit("newPlayer", player);
       socket.emit("monstersUpdate", getMonstersOnMap(player.currentMapId));
     });

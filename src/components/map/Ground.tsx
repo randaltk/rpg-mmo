@@ -1,21 +1,96 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Box, Sphere, Cylinder, Sparkles } from '@react-three/drei';
 import { seededRandom } from '@/utils/seededRandom';
 import { Mountains } from './environment/Mountains';
 import { CastleFloor } from './environment/CastleFloor';
+import { BIOME_CONFIGS } from '@/lib/worldgen/biome-configs';
+import type { BiomeType } from '@/types/game';
+import { useGameStore } from '@/stores/gameStore';
 import * as THREE from 'three';
 
-export const Ground = memo(function Ground({ mapId, width, height }: { mapId: string; width: number; height: number }) {
+interface TerrainGroundProps {
+  width: number;
+  height: number;
+  heightmap: Float32Array;
+  resolution: number;
+  biomeMap?: BiomeType[];
+}
+
+const _tempColor = new THREE.Color();
+const _tempColor2 = new THREE.Color();
+
+function getTerrainColor(h: number, biome?: BiomeType): THREE.Color {
+  const colors = biome ? BIOME_CONFIGS[biome].groundColors : ['#3A6A2A', '#5A8A3A', '#7A9A4A', '#8A7A5A', '#6A6A6A'];
+
+  const t = Math.max(0, Math.min(1, (h + 1.5) / 13.5));
+
+  const idx = t * (colors.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.min(lo + 1, colors.length - 1);
+  const frac = idx - lo;
+
+  _tempColor.set(colors[lo]);
+  _tempColor2.set(colors[hi]);
+  _tempColor.lerp(_tempColor2, frac);
+
+  return _tempColor;
+}
+
+const TerrainGround = memo(function TerrainGround({ width, height, heightmap, resolution, biomeMap }: TerrainGroundProps) {
+  const geometry = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(width, height, resolution, resolution);
+    geo.rotateX(-Math.PI / 2);
+
+    const positions = geo.attributes.position;
+    const colors = new Float32Array(positions.count * 3);
+    const res = resolution + 1;
+
+    for (let i = 0; i < positions.count; i++) {
+      const ix = i % res;
+      const iz = Math.floor(i / res);
+      const h = heightmap[iz * res + ix];
+
+      positions.setY(i, h);
+
+      const biome = biomeMap ? biomeMap[iz * res + ix] : undefined;
+      const color = getTerrainColor(h, biome);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    return geo;
+  }, [width, height, heightmap, resolution, biomeMap]);
+
+  return (
+    <mesh geometry={geometry} receiveShadow>
+      <meshStandardMaterial vertexColors roughness={0.92} metalness={0.02} />
+    </mesh>
+  );
+});
+
+export const Ground = memo(function Ground({ mapId, width, height, heightmap, resolution, biomeMap }: {
+  mapId: string;
+  width: number;
+  height: number;
+  heightmap?: Float32Array;
+  resolution?: number;
+  biomeMap?: BiomeType[];
+}) {
   const isCave = mapId === 'cave';
   const isCastle = mapId === 'castle';
   const isTown = mapId === 'town';
+  const hasHeightmap = heightmap && resolution;
 
-  const vegetation = useMemo(() => {
+  const allVegetation = useMemo(() => {
     if (isCastle) return [];
     const items = [];
-    const count = isCave ? 25 : 180;
+    const count = isCave ? 25 : 200;
     for (let i = 0; i < count; i++) {
       items.push({
         x: (seededRandom(i * 7 + 1) - 0.5) * width * 0.85,
@@ -31,25 +106,76 @@ export const Ground = memo(function Ground({ mapId, width, height }: { mapId: st
     return items;
   }, [mapId, width, height, isCave, isCastle]);
 
-  const pebbles = useMemo(() => {
+  const allPebbles = useMemo(() => {
     if (isCastle) return [];
-    return Array.from({ length: isTown ? 60 : 30 }, (_, i) => ({
+    return Array.from({ length: isTown ? 100 : 30 }, (_, i) => ({
       x: (seededRandom(i * 11 + 200) - 0.5) * width * 0.8,
       z: (seededRandom(i * 11 + 201) - 0.5) * height * 0.8,
       s: 0.04 + seededRandom(i * 11 + 202) * 0.08,
     }));
   }, [mapId, width, height, isCastle, isTown]);
 
+  const VEG_VIEW_DIST_SQ = 60 * 60;
+  const [vegetation, setVegetation] = useState(allVegetation.slice(0, 40));
+  const [pebbles, setPebbles] = useState(allPebbles.slice(0, 20));
+  const vegTimerRef = useRef(0);
+  const lastVegChunkRef = useRef('');
+
+  useFrame((_, delta) => {
+    if (isCastle || isCave) return;
+    vegTimerRef.current += delta;
+    if (vegTimerRef.current < 0.5) return;
+    vegTimerRef.current = 0;
+
+    const pos = useGameStore.getState().localPlayerPos;
+    if (!pos) return;
+    const px = pos.x;
+    const pz = pos.z;
+    const chunkKey = `${Math.floor(px / 30)},${Math.floor(pz / 30)}`;
+    if (chunkKey === lastVegChunkRef.current) return;
+    lastVegChunkRef.current = chunkKey;
+
+    setVegetation(allVegetation.filter(v => {
+      const dx = v.x - px;
+      const dz = v.z - pz;
+      return dx * dx + dz * dz < VEG_VIEW_DIST_SQ;
+    }));
+    setPebbles(allPebbles.filter(p => {
+      const dx = p.x - px;
+      const dz = p.z - pz;
+      return dx * dx + dz * dz < VEG_VIEW_DIST_SQ;
+    }));
+  });
+
   if (isCastle) {
     return <CastleFloor width={width} height={height} />;
   }
 
+  // Vegetation Y offset helper — sample heightmap if available
+  const getVegY = (x: number, z: number): number => {
+    if (!hasHeightmap) return 0;
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const nx = (x + halfW) / width;
+    const nz = (z + halfH) / height;
+    const ix = Math.round(nx * resolution!);
+    const iz = Math.round(nz * resolution!);
+    const res = resolution! + 1;
+    const ci = Math.max(0, Math.min(resolution!, iz)) * res + Math.max(0, Math.min(resolution!, ix));
+    return heightmap![ci] ?? 0;
+  };
+
   return (
     <>
-      <Box position={[0, -0.5, 0]} args={[width, 1, height]} receiveShadow>
-        <meshStandardMaterial color={isCave ? '#2A2A2A' : '#5A8A3A'} roughness={0.95} metalness={0.02} />
-      </Box>
-      {isTown && (
+      {hasHeightmap ? (
+        <TerrainGround width={width} height={height} heightmap={heightmap!} resolution={resolution!} biomeMap={biomeMap} />
+      ) : (
+        <Box position={[0, -0.5, 0]} args={[width, 1, height]} receiveShadow>
+          <meshStandardMaterial color={isCave ? '#2A2A2A' : '#5A8A3A'} roughness={0.95} metalness={0.02} />
+        </Box>
+      )}
+
+      {isTown && !hasHeightmap && (
         <>
           {Array.from({ length: 12 }, (_, i) => {
             const cx = (seededRandom(i * 23 + 300) - 0.5) * width * 0.7;
@@ -71,6 +197,7 @@ export const Ground = memo(function Ground({ mapId, width, height }: { mapId: st
           </Box>
         </>
       )}
+
       {isCave && (
         <group position={[-5, 0.01, -5]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
@@ -91,9 +218,14 @@ export const Ground = memo(function Ground({ mapId, width, height }: { mapId: st
 
       {isTown && (
         <>
-          <Mountains />
+          <Mountains
+            heightmap={heightmap}
+            mapWidth={width}
+            mapHeight={height}
+            resolution={resolution}
+          />
           {/* Pond */}
-          <group position={[15, 0.02, -12]}>
+          <group position={[15, getVegY(15, -12) + 0.02, -12]}>
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
               <circleGeometry args={[5, 24]} />
               <meshPhysicalMaterial
@@ -115,30 +247,36 @@ export const Ground = memo(function Ground({ mapId, width, height }: { mapId: st
         </>
       )}
 
-      {vegetation.map((v, i) => (
-        <group key={`veg-${i}`} position={[v.x, 0, v.z]}>
-          <Cylinder args={[0.005, 0.015, v.scale, 3]} position={[0, v.scale / 2, 0]} rotation={[0.1, 0, 0.05]}>
-            <meshStandardMaterial color={v.color} roughness={0.9} />
-          </Cylinder>
-          <Cylinder args={[0.005, 0.015, v.scale * 0.8, 3]} position={[0.03, v.scale * 0.4, 0.02]} rotation={[-0.1, 0.3, 0.1]}>
-            <meshStandardMaterial color={v.color} roughness={0.9} />
-          </Cylinder>
-          <Cylinder args={[0.005, 0.015, v.scale * 0.7, 3]} position={[-0.02, v.scale * 0.35, -0.01]} rotation={[0.05, -0.2, -0.1]}>
-            <meshStandardMaterial color={v.color} roughness={0.9} />
-          </Cylinder>
-          {v.type === 'flower' && !isCave && (
-            <Sphere args={[0.03, 5, 5]} position={[0, v.scale + 0.02, 0]}>
-              <meshStandardMaterial color={v.flowerColor} emissive={v.flowerColor} emissiveIntensity={0.15} />
-            </Sphere>
-          )}
-        </group>
-      ))}
+      {vegetation.map((v, i) => {
+        const vy = getVegY(v.x, v.z);
+        return (
+          <group key={`veg-${i}`} position={[v.x, vy, v.z]}>
+            <Cylinder args={[0.005, 0.015, v.scale, 3]} position={[0, v.scale / 2, 0]} rotation={[0.1, 0, 0.05]}>
+              <meshStandardMaterial color={v.color} roughness={0.9} />
+            </Cylinder>
+            <Cylinder args={[0.005, 0.015, v.scale * 0.8, 3]} position={[0.03, v.scale * 0.4, 0.02]} rotation={[-0.1, 0.3, 0.1]}>
+              <meshStandardMaterial color={v.color} roughness={0.9} />
+            </Cylinder>
+            <Cylinder args={[0.005, 0.015, v.scale * 0.7, 3]} position={[-0.02, v.scale * 0.35, -0.01]} rotation={[0.05, -0.2, -0.1]}>
+              <meshStandardMaterial color={v.color} roughness={0.9} />
+            </Cylinder>
+            {v.type === 'flower' && !isCave && (
+              <Sphere args={[0.03, 5, 5]} position={[0, v.scale + 0.02, 0]}>
+                <meshStandardMaterial color={v.flowerColor} emissive={v.flowerColor} emissiveIntensity={0.15} />
+              </Sphere>
+            )}
+          </group>
+        );
+      })}
 
-      {pebbles.map((p, i) => (
-        <Sphere key={`peb-${i}`} args={[p.s, 5, 4]} position={[p.x, p.s * 0.3, p.z]} scale={[1, 0.5, 1]}>
-          <meshStandardMaterial color={isCave ? '#444' : '#8B8878'} roughness={0.95} />
-        </Sphere>
-      ))}
+      {pebbles.map((p, i) => {
+        const py = getVegY(p.x, p.z);
+        return (
+          <Sphere key={`peb-${i}`} args={[p.s, 5, 4]} position={[p.x, py + p.s * 0.3, p.z]} scale={[1, 0.5, 1]}>
+            <meshStandardMaterial color={isCave ? '#444' : '#8B8878'} roughness={0.95} />
+          </Sphere>
+        );
+      })}
     </>
   );
 });

@@ -1,12 +1,18 @@
 import { Server } from "socket.io";
 import type { MonsterSpawn, CombatEvent } from "@/types/game";
-import { MONSTER_SPAWNS } from "@/shared/monsterSpawns";
 import type { ServerMonster } from "./types";
 import {
   players, monsters, nextMonsterId,
   DEFAULT_MAP, MONSTER_MAP, MONSTER_BASE_STATS, MONSTER_NAMES,
+  VARIANT_MODIFIERS, VARIANT_NAMES,
   mapRoom, distanceBetween, getPlayersOnMap, getMonstersOnMap,
+  getMonsterTerrainY,
 } from "./state";
+import { generateMonsterSpawns, DEFAULT_MONSTER_CONFIG } from "@/lib/worldgen/monsters";
+import { townHeightmap, townTerrainMeta, worldSeed } from "./state";
+import { generateBiomeMap, DEFAULT_BIOME_CONFIG } from "@/lib/worldgen/biomes";
+
+let MONSTER_SPAWNS: MonsterSpawn[] = [];
 
 export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster {
   const base = MONSTER_BASE_STATS[spawn.type];
@@ -17,18 +23,29 @@ export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster 
   const z = spawn.z + Math.sin(angle) * dist;
   const id = nextMonsterId();
 
+  const terrainY = getMonsterTerrainY(x, z);
+
+  const vm = spawn.variant ? VARIANT_MODIFIERS[spawn.variant] : null;
+  const hpMult = vm ? vm.hp : 1;
+  const atkMult = vm ? vm.attack : 1;
+  const defMult = vm ? vm.defense : 1;
+  const expMult = vm ? vm.expReward : 1;
+
+  const variantPrefix = spawn.variant && VARIANT_NAMES[spawn.variant] ? `${VARIANT_NAMES[spawn.variant]} ` : '';
+  const name = `${variantPrefix}${MONSTER_NAMES[spawn.type]}`;
+
   const monster: ServerMonster = {
     id,
-    name: MONSTER_NAMES[spawn.type],
+    name,
     type: spawn.type,
     mapId: MONSTER_MAP,
-    x, y: 0, z,
-    hp: Math.floor(base.hp * levelMult),
-    maxHp: Math.floor(base.hp * levelMult),
-    attack: Math.floor(base.attack * levelMult),
-    defense: Math.floor(base.defense * levelMult),
+    x, y: terrainY, z,
+    hp: Math.floor(base.hp * levelMult * hpMult),
+    maxHp: Math.floor(base.hp * levelMult * hpMult),
+    attack: Math.floor(base.attack * levelMult * atkMult),
+    defense: Math.floor(base.defense * levelMult * defMult),
     level: spawn.level,
-    expReward: Math.floor(base.expReward * levelMult),
+    expReward: Math.floor(base.expReward * levelMult * expMult),
     color: spawn.color || "#4CAF50",
     state: "idle",
     targetPlayerId: undefined,
@@ -36,12 +53,14 @@ export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster 
     spawnZ: spawn.z,
     spawnId: spawn.id,
     spawnIndex: index,
-    respawnTime: 10000,
+    respawnTime: spawn.variant === 'chief' ? 30000 : spawn.variant === 'golden' ? 20000 : 10000,
     lastAttackTime: 0,
     wanderTarget: null,
     wanderCooldown: 0,
     hurtTime: 0,
     deathTime: 0,
+    variant: spawn.variant,
+    biome: spawn.biome,
   };
 
   monsters[id] = monster;
@@ -49,12 +68,34 @@ export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster 
 }
 
 export function initMonsters(): void {
+  const biomeConfig = {
+    ...DEFAULT_BIOME_CONFIG,
+    width: townTerrainMeta.width,
+    height: townTerrainMeta.height,
+    resolution: townTerrainMeta.resolution,
+  };
+  const serverBiomeMap = generateBiomeMap(worldSeed.base, biomeConfig);
+
+  MONSTER_SPAWNS = generateMonsterSpawns(
+    serverBiomeMap,
+    townHeightmap,
+    worldSeed.base,
+    {
+      ...DEFAULT_MONSTER_CONFIG,
+      mapWidth: townTerrainMeta.width,
+      mapHeight: townTerrainMeta.height,
+      heightmapResolution: townTerrainMeta.resolution,
+    },
+  );
+
+  console.log(`[WorldGen] Generated ${MONSTER_SPAWNS.length} monster spawn points`);
+
   for (const spawn of MONSTER_SPAWNS) {
     for (let i = 0; i < spawn.count; i++) {
       spawnMonster(spawn, i);
     }
   }
-  console.log(`Spawned ${Object.keys(monsters).length} monsters`);
+  console.log(`[WorldGen] Spawned ${Object.keys(monsters).length} monsters total`);
 }
 
 export function updateMonsters(io: Server): void {
@@ -68,13 +109,14 @@ export function updateMonsters(io: Server): void {
         if (spawn) {
           const base = MONSTER_BASE_STATS[spawn.type];
           const levelMult = 1 + (spawn.level - 1) * 0.3;
+          const vm = spawn.variant ? VARIANT_MODIFIERS[spawn.variant] : null;
           const angle = Math.random() * Math.PI * 2;
           const dist = Math.random() * spawn.radius;
           monster.x = spawn.x + Math.cos(angle) * dist;
           monster.z = spawn.z + Math.sin(angle) * dist;
-          monster.y = 0;
-          monster.hp = Math.floor(base.hp * levelMult);
-          monster.maxHp = Math.floor(base.hp * levelMult);
+          monster.y = monster.mapId === MONSTER_MAP ? getMonsterTerrainY(monster.x, monster.z) : 0;
+          monster.hp = Math.floor(base.hp * levelMult * (vm ? vm.hp : 1));
+          monster.maxHp = Math.floor(base.hp * levelMult * (vm ? vm.hp : 1));
           monster.state = "idle";
           monster.targetPlayerId = undefined;
           monster.hurtTime = 0;
@@ -121,6 +163,9 @@ export function updateMonsters(io: Server): void {
         if (dist > 0.1) {
           monster.x += (dx / dist) * base.moveSpeed;
           monster.z += (dz / dist) * base.moveSpeed;
+          if (monster.mapId === MONSTER_MAP) {
+            monster.y = getMonsterTerrainY(monster.x, monster.z);
+          }
           changedMaps.add(monster.mapId);
         }
         if (dist <= base.attackRange) {
@@ -231,6 +276,9 @@ export function updateMonsters(io: Server): void {
         } else {
           monster.x += (dx / d) * base.moveSpeed * 0.5;
           monster.z += (dz / d) * base.moveSpeed * 0.5;
+          if (monster.mapId === MONSTER_MAP) {
+            monster.y = getMonsterTerrainY(monster.x, monster.z);
+          }
           monster.state = "wandering";
         }
         changedMaps.add(monster.mapId);
@@ -248,6 +296,9 @@ export function updateMonsters(io: Server): void {
       } else {
         monster.x += (dx / d) * base.moveSpeed * 0.5;
         monster.z += (dz / d) * base.moveSpeed * 0.5;
+        if (monster.mapId === MONSTER_MAP) {
+          monster.y = getMonsterTerrainY(monster.x, monster.z);
+        }
       }
       changedMaps.add(monster.mapId);
     }
