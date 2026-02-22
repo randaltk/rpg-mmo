@@ -92,19 +92,16 @@ export default function CharacterHead({
               <Sphere args={[0.1, 12, 12]} position={[s * 0.15, 0.04, 0.28]}>
                 <meshStandardMaterial color="#FFFFFF" />
               </Sphere>
-              {/* Íris - Maior e mais colorida, um pouco mais brilhante */}
               <Sphere args={[0.07, 10, 10]} position={[s * 0.15, 0.04, 0.33]}>
                 <meshStandardMaterial
                   color="#3A7BD5"
-                  emissive="#1A4B95"
-                  emissiveIntensity={0.2}
+                  emissive="#2A6BC5"
+                  emissiveIntensity={0.6}
                 />
               </Sphere>
-              {/* Pupila - Maior */}
               <Sphere args={[0.04, 8, 8]} position={[s * 0.15, 0.04, 0.355]}>
                 <meshStandardMaterial color="#111111" />
               </Sphere>
-              {/* Brilho do Olho - Um pouco mais deslocado para o lado e maior */}
               <Sphere
                 args={[0.025, 6, 6]}
                 position={[s * 0.15 + s * 0.025, 0.065, 0.365]}
@@ -112,7 +109,7 @@ export default function CharacterHead({
                 <meshStandardMaterial
                   color="#FFFFFF"
                   emissive="#FFFFFF"
-                  emissiveIntensity={0.8}
+                  emissiveIntensity={1.8}
                 />
               </Sphere>
               {/* Sobrancelha - Mais grossa e com um ângulo mais dramático */}

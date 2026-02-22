@@ -2,7 +2,9 @@
 
 import React, { useRef, useMemo, useCallback, useEffect, useState, memo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Stars, Sphere } from "@react-three/drei";
+import { Stars, Sphere, ContactShadows } from "@react-three/drei";
+import { EffectComposer, Bloom, SSAO, Vignette } from "@react-three/postprocessing";
+import { BlendFunction } from "postprocessing";
 import { useSocket } from "@/hooks/useSocket";
 import { useGameControls } from "@/hooks/useGameControls";
 import PlayerCharacter from "./character";
@@ -203,7 +205,44 @@ const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTo
       />
 
       <FloatingParticles isCave={isIndoor} />
+
+      <ContactShadows
+        position={[0, 0.01, 0]}
+        opacity={isCave ? 0.3 : isCastle ? 0.4 : 0.55}
+        scale={40}
+        blur={1.5}
+        far={4}
+        color={isCastle ? "#1A0A00" : isCave ? "#000020" : "#2A4020"}
+      />
     </>
+  );
+});
+
+const PostProcessing = memo(function PostProcessing({ isCave, isCastle }: { isCave: boolean; isCastle: boolean }) {
+  return (
+    <EffectComposer multisampling={0}>
+      <Bloom
+        intensity={isCave ? 1.2 : isCastle ? 0.8 : 0.4}
+        luminanceThreshold={isCave ? 0.6 : 0.8}
+        luminanceSmoothing={0.4}
+        mipmapBlur
+      />
+      <SSAO
+        blendFunction={BlendFunction.MULTIPLY}
+        samples={16}
+        radius={5}
+        intensity={isCave ? 25 : isCastle ? 20 : 12}
+        worldDistanceThreshold={1.0}
+        worldDistanceFalloff={0.0}
+        worldProximityThreshold={0.4}
+        worldProximityFalloff={0.1}
+      />
+      <Vignette
+        offset={0.3}
+        darkness={isCave ? 0.7 : isCastle ? 0.6 : 0.35}
+        blendFunction={BlendFunction.NORMAL}
+      />
+    </EffectComposer>
   );
 });
 
@@ -392,6 +431,8 @@ export default function GameScene({
 
       {/* Damage Numbers - rendered via useFrame, no React state */}
       <DamageNumberManager />
+
+      <PostProcessing isCave={isCave} isCastle={isCastle} />
     </>
   );
 }

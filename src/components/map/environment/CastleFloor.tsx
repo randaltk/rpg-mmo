@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo } from 'react';
-import { Box, Sphere, Cylinder } from '@react-three/drei';
+import { Box, Sphere, Cylinder, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 
 export const CastleFloor = memo(function CastleFloor({ width, height }: { width: number; height: number }) {
@@ -16,7 +16,7 @@ export const CastleFloor = memo(function CastleFloor({ width, height }: { width:
   return (
     <>
       {/* Stone floor */}
-      <Box position={[0, -0.5, 0]} args={[width, 1, height]}>
+      <Box position={[0, -0.5, 0]} args={[width, 1, height]} receiveShadow>
         <meshStandardMaterial color="#4A4A4A" roughness={0.95} />
       </Box>
       {/* Floor tile pattern */}
@@ -57,9 +57,13 @@ export const CastleFloor = memo(function CastleFloor({ width, height }: { width:
             <meshStandardMaterial color="#5C3A1E" roughness={0.9} />
           </Cylinder>
           <Sphere args={[0.08, 6, 6]} position={[0, 0.3, 0]}>
-            <meshStandardMaterial color="#FF8C00" emissive="#FF6600" emissiveIntensity={2} />
+            <meshStandardMaterial color="#FF8C00" emissive="#FF6600" emissiveIntensity={3} />
           </Sphere>
-          <pointLight position={[0, 0.4, 0]} color="#FF8C00" intensity={0.8} distance={8} decay={2} />
+          <Sphere args={[0.12, 6, 6]} position={[0, 0.35, 0]}>
+            <meshStandardMaterial color="#FFAA00" emissive="#FF4400" emissiveIntensity={2} transparent opacity={0.3} />
+          </Sphere>
+          <Sparkles count={5} scale={0.5} size={1.5} speed={1.5} color="#FF8C00" opacity={0.6} position={[0, 0.4, 0]} />
+          <pointLight position={[0, 0.4, 0]} color="#FF8C00" intensity={1} distance={8} decay={2} />
         </group>
       ))}
       {/* Banners */}
@@ -98,7 +102,7 @@ export const CastleFloor = memo(function CastleFloor({ width, height }: { width:
         <meshStandardMaterial color="#5C3A1E" roughness={0.7} />
       </Box>
       <Box position={[0, 2.9, -13.2]} args={[0.6, 0.3, 0.2]}>
-        <meshStandardMaterial color="#C5A030" roughness={0.3} metalness={0.7} />
+        <meshStandardMaterial color="#C5A030" emissive="#C5A030" emissiveIntensity={0.5} roughness={0.3} metalness={0.7} />
       </Box>
       {/* Armrests */}
       <Box position={[-0.65, 1.2, -12.8]} args={[0.15, 0.15, 0.6]}>

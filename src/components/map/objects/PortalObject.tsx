@@ -2,7 +2,7 @@
 
 import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Torus, Cylinder } from '@react-three/drei';
+import { Text, Torus, Cylinder, Sparkles } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 import * as THREE from 'three';
 
@@ -49,6 +49,7 @@ export const PortalObject = memo(function PortalObject({ obj }: { obj: MapObject
       </mesh>
       <pointLight color="#9B30FF" intensity={1} distance={8} />
       <pointLight color="#00E5FF" intensity={0.5} distance={5} />
+      <Sparkles count={20} scale={2.5} size={3} speed={0.6} color="#9B30FF" opacity={0.7} />
       <Text position={[0, 1.8, 0]} fontSize={0.25} color="#E0B0FF" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#000">
         {label}
       </Text>

@@ -18,14 +18,14 @@ export const TreeObject = memo(function TreeObject({ obj }: { obj: MapObject }) 
         );
       })}
       {/* Trunk */}
-      <Cylinder args={[0.2, 0.35, h, 8]} position={[0, h / 2, 0]}>
+      <Cylinder args={[0.2, 0.35, h, 8]} position={[0, h / 2, 0]} castShadow>
         <meshStandardMaterial color="#6B3A20" roughness={0.95} />
       </Cylinder>
       <Cylinder args={[0.18, 0.22, h * 0.3, 6]} position={[0.15, h * 0.7, 0.1]} rotation={[0.2, 0, 0.3]}>
         <meshStandardMaterial color="#5C3A1E" roughness={0.95} />
       </Cylinder>
       {/* Foliage layers */}
-      <Sphere args={[h * 0.55, 10, 8]} position={[0, h + 0.3, 0]}>
+      <Sphere args={[h * 0.55, 10, 8]} position={[0, h + 0.3, 0]} castShadow>
         <meshStandardMaterial color="#2D8B2D" roughness={0.9} />
       </Sphere>
       <Sphere args={[h * 0.42, 8, 6]} position={[0.4, h + 0.1, 0.3]}>

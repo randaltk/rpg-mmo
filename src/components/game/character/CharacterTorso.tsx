@@ -24,7 +24,7 @@ export default function CharacterTorso({ capeRef, colors, classConfig }: Charact
   return (
     <>
       {/* === BASE TORSO === */}
-      <Cylinder args={[0.3, 0.34, 0.72, 10]} position={[0, 0.88, 0]}>
+      <Cylinder args={[0.3, 0.34, 0.72, 10]} position={[0, 0.88, 0]} castShadow>
         <meshStandardMaterial color={colors.primary} roughness={0.8} />
       </Cylinder>
       <Sphere args={[0.3, 10, 8]} position={[0, 0.9, 0.08]} scale={[1.1, 0.95, 0.7]}>

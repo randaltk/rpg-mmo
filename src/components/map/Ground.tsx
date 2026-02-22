@@ -1,10 +1,11 @@
 'use client';
 
 import { memo, useMemo } from 'react';
-import { Box, Sphere, Cylinder } from '@react-three/drei';
+import { Box, Sphere, Cylinder, Sparkles } from '@react-three/drei';
 import { seededRandom } from '@/utils/seededRandom';
 import { Mountains } from './environment/Mountains';
 import { CastleFloor } from './environment/CastleFloor';
+import * as THREE from 'three';
 
 export const Ground = memo(function Ground({ mapId, width, height }: { mapId: string; width: number; height: number }) {
   const isCave = mapId === 'cave';
@@ -45,7 +46,7 @@ export const Ground = memo(function Ground({ mapId, width, height }: { mapId: st
 
   return (
     <>
-      <Box position={[0, -0.5, 0]} args={[width, 1, height]}>
+      <Box position={[0, -0.5, 0]} args={[width, 1, height]} receiveShadow>
         <meshStandardMaterial color={isCave ? '#2A2A2A' : '#5A8A3A'} roughness={0.95} metalness={0.02} />
       </Box>
       {isTown && (
@@ -71,13 +72,48 @@ export const Ground = memo(function Ground({ mapId, width, height }: { mapId: st
         </>
       )}
       {isCave && (
-        <mesh position={[-5, 0.01, -5]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[6, 16]} />
-          <meshStandardMaterial color="#222" roughness={1} transparent opacity={0.3} />
-        </mesh>
+        <group position={[-5, 0.01, -5]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[6, 24]} />
+            <meshPhysicalMaterial
+              color="#0A2A3A"
+              roughness={0.05}
+              metalness={0.2}
+              transparent
+              opacity={0.6}
+              transmission={0.2}
+              thickness={0.5}
+            />
+          </mesh>
+          <Sparkles count={6} scale={[12, 0.3, 12]} size={1} speed={0.15} color="#00CED1" opacity={0.3} />
+        </group>
       )}
 
-      {isTown && <Mountains />}
+      {isTown && (
+        <>
+          <Mountains />
+          {/* Pond */}
+          <group position={[15, 0.02, -12]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[5, 24]} />
+              <meshPhysicalMaterial
+                color="#2A6A8A"
+                roughness={0.05}
+                metalness={0.1}
+                transparent
+                opacity={0.7}
+                transmission={0.3}
+                thickness={1}
+              />
+            </mesh>
+            <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[5.5, 24]} />
+              <meshStandardMaterial color="#3A4A2A" roughness={0.95} />
+            </mesh>
+            <Sparkles count={8} scale={[10, 0.5, 10]} size={1.5} speed={0.2} color="#8AC8E8" opacity={0.3} />
+          </group>
+        </>
+      )}
 
       {vegetation.map((v, i) => (
         <group key={`veg-${i}`} position={[v.x, 0, v.z]}>

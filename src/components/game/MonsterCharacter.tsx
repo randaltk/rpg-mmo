@@ -161,12 +161,13 @@ function SlimeModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: boole
         <meshStandardMaterial
           color={cCore}
           emissive={c}
-          emissiveIntensity={0.3}
+          emissiveIntensity={1.2}
           roughness={0.1}
           transparent
-          opacity={0.5}
+          opacity={0.6}
         />
       </Sphere>
+      <pointLight position={[0, 0.25, 0]} color={c} intensity={0.3} distance={2.5} />
 
       {/* Bottom shadow/base */}
       <Cylinder args={[0.4, 0.48, 0.04, 18]} position={[0, 0.02, 0]}>
@@ -203,10 +204,10 @@ function SlimeModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: boole
         </Sphere>
         {/* Eye shine */}
         <Sphere args={[0.02, 4, 4]} position={[-0.12, 0.12, 0.41]}>
-          <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.6} />
+          <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={1.8} />
         </Sphere>
         <Sphere args={[0.02, 4, 4]} position={[0.16, 0.12, 0.41]}>
-          <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.6} />
+          <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={1.8} />
         </Sphere>
       </group>
 
@@ -309,7 +310,7 @@ function GoblinModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: bool
   return (
     <group ref={bodyRef} scale={[0.75, 0.75, 0.75]}>
       {/* Torso */}
-      <Box args={[0.48, 0.45, 0.32]} position={[0, 0.72, 0]}>
+      <Box args={[0.48, 0.45, 0.32]} position={[0, 0.72, 0]} castShadow>
         <meshStandardMaterial color={cloth} roughness={0.85} />
       </Box>
       {/* Chest musculature suggestion */}
@@ -384,16 +385,16 @@ function GoblinModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: bool
         {[-1, 1].map(s => (
           <group key={`geye-${s}`}>
             <Sphere args={[0.065, 8, 8]} position={[s * 0.1, 0.02, 0.2]} scale={[0.9, 1, 0.6]}>
-              <meshStandardMaterial color="#EEDD66" />
+              <meshStandardMaterial color="#EEDD66" emissive="#EEDD66" emissiveIntensity={0.3} />
             </Sphere>
             <Sphere args={[0.04, 6, 6]} position={[s * 0.1, 0.02, 0.24]}>
-              <meshStandardMaterial color="#881100" />
+              <meshStandardMaterial color="#CC2200" emissive="#881100" emissiveIntensity={0.5} />
             </Sphere>
             <Sphere args={[0.02, 4, 4]} position={[s * 0.1, 0.02, 0.26]}>
               <meshStandardMaterial color="#110000" />
             </Sphere>
             <Sphere args={[0.01, 3, 3]} position={[s * 0.1 + s * 0.015, 0.04, 0.265]}>
-              <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={0.4} />
+              <meshStandardMaterial color="#FFFFFF" emissive="#FFFFFF" emissiveIntensity={1.5} />
             </Sphere>
           </group>
         ))}

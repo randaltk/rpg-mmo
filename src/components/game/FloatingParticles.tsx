@@ -66,7 +66,13 @@ export default function FloatingParticles({ isCave = false }: FloatingParticlesP
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" count={fireflyPositions.length / 3} array={fireflyPositions} itemSize={3} />
         </bufferGeometry>
-        <pointsMaterial size={isCave ? 0.12 : 0.1} color={isCave ? "#00E5FF" : "#FFEB3B"} transparent opacity={0.8} sizeAttenuation />
+        <pointsMaterial
+          size={isCave ? 0.15 : 0.12}
+          color={isCave ? "#00E5FF" : "#FFEB3B"}
+          transparent
+          opacity={0.9}
+          sizeAttenuation
+        />
       </points>
     </>
   );

@@ -2,7 +2,7 @@
 
 import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Box, Text, Sphere, Cylinder, Cone } from '@react-three/drei';
+import { Box, Text, Sphere, Cylinder, Cone, Sparkles } from '@react-three/drei';
 import { NPC } from '@/types/game';
 import * as THREE from 'three';
 
@@ -30,7 +30,7 @@ export const NPCComponent = memo(function NPCComponent({ npc }: { npc: NPC }) {
     <group ref={groupRef} position={[npc.x, npc.y, npc.z]}>
 
       {/* === TORSO === */}
-      <Box args={[0.65, 0.7, 0.42]} position={[0, 0.85, 0]}>
+      <Box args={[0.65, 0.7, 0.42]} position={[0, 0.85, 0]} castShadow>
         <meshStandardMaterial color={p.outfit} roughness={0.75} />
       </Box>
       <Box args={[0.12, 0.5, 0.02]} position={[0, 0.85, 0.22]}>
@@ -149,10 +149,10 @@ export const NPCComponent = memo(function NPCComponent({ npc }: { npc: NPC }) {
           <meshStandardMaterial color="#111" />
         </Sphere>
         <Sphere args={[0.01, 4, 4]} position={[-0.088, 0.015, 0.305]}>
-          <meshStandardMaterial color="#FFF" emissive="#FFF" emissiveIntensity={0.5} />
+          <meshStandardMaterial color="#FFF" emissive="#FFF" emissiveIntensity={1.5} />
         </Sphere>
         <Sphere args={[0.01, 4, 4]} position={[0.112, 0.015, 0.305]}>
-          <meshStandardMaterial color="#FFF" emissive="#FFF" emissiveIntensity={0.5} />
+          <meshStandardMaterial color="#FFF" emissive="#FFF" emissiveIntensity={1.5} />
         </Sphere>
         {/* Nose */}
         <Sphere args={[0.025, 6, 6]} position={[0, -0.05, 0.28]}>
@@ -261,20 +261,29 @@ export const NPCComponent = memo(function NPCComponent({ npc }: { npc: NPC }) {
           <Text fontSize={0.3} color="#FFD700" anchorX="center" anchorY="middle" outlineWidth={0.02} outlineColor="#000">
             !
           </Text>
+          <pointLight color="#FFD700" intensity={0.5} distance={3} />
         </group>
       )}
       {npc.type === 'merchant' && (
         <group ref={indicatorRef} position={[0, 2.55, 0]}>
           <mesh>
             <octahedronGeometry args={[0.08, 0]} />
-            <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={1} />
+            <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={2} />
           </mesh>
+          <pointLight color="#FFD700" intensity={0.3} distance={2} />
         </group>
+      )}
+
+      {npc.type === 'quest' && (
+        <Sparkles count={12} scale={2} size={2.5} speed={0.3} color="#76FF03" opacity={0.5} />
+      )}
+      {npc.type === 'merchant' && (
+        <Sparkles count={8} scale={1.5} size={2} speed={0.2} color="#FFD700" opacity={0.4} />
       )}
 
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.45, 0.55, 24]} />
-        <meshStandardMaterial color={p.accent} emissive={p.accent} emissiveIntensity={0.4} transparent opacity={0.25} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={p.accent} emissive={p.accent} emissiveIntensity={0.8} transparent opacity={0.3} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
