@@ -176,14 +176,14 @@ export default function LandingPage() {
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 py-3 bg-[#1A3A52]/95 border-b-2 border-[#D4AF37] backdrop-blur-md sticky top-0 shadow-[0_0_20px_rgba(212,175,55,0.3)]">
+      <nav className="relative z-20 flex items-center justify-between px-6 lg:px-12 py-2 bg-[#1A3A52]/95 border-b-2 border-[#D4AF37] backdrop-blur-md sticky top-0 shadow-[0_0_20px_rgba(212,175,55,0.3)]">
         <div className="flex items-center gap-2">
           <Image
             src="/rpg-assets/logo_aldoria.png"
             alt="Legends of Aldoria"
-            width={180}
-            height={60}
-            className="h-12 w-auto"
+            width={1000}
+            height={800}
+            className="h-14 w-auto"
             priority
           />
         </div>
