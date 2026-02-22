@@ -8,7 +8,7 @@ export interface Player {
   z: number;
   color: string;
   characterClass?: CharacterClass;
-  // Atributos de RPG
+  currentMapId?: string;
   level: number;
   hp: number;
   maxHp: number;

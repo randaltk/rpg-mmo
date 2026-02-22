@@ -165,6 +165,11 @@ export function updateMonsters(io: Server): void {
           targetMaxHp: target.maxHp,
           x: target.x, y: target.y + 1.5, z: target.z,
         } satisfies CombatEvent);
+
+        const targetSocket = io.sockets.sockets.get(target.id);
+        if (targetSocket) {
+          targetSocket.emit("playerUpdated", target);
+        }
         io.to(room).emit("playerMoved", target);
 
         if (target.hp <= 0) {
@@ -182,18 +187,26 @@ export function updateMonsters(io: Server): void {
           target.x = 0; target.y = 0; target.z = 0;
 
           const targetSocket = io.sockets.sockets.get(target.id);
-          if (targetSocket && target.currentMapId !== DEFAULT_MAP) {
-            const oldRoom = mapRoom(target.currentMapId);
-            target.currentMapId = DEFAULT_MAP;
-            targetSocket.leave(oldRoom);
-            targetSocket.join(mapRoom(DEFAULT_MAP));
-            io.to(oldRoom).emit("removePlayer", target.id);
-            io.to(mapRoom(DEFAULT_MAP)).emit("newPlayer", target);
-          }
+          if (targetSocket) {
+            if (target.currentMapId !== DEFAULT_MAP) {
+              const oldRoom = mapRoom(target.currentMapId);
+              target.currentMapId = DEFAULT_MAP;
+              targetSocket.leave(oldRoom);
+              targetSocket.join(mapRoom(DEFAULT_MAP));
+              io.to(oldRoom).emit("removePlayer", target.id);
+              io.to(mapRoom(DEFAULT_MAP)).emit("newPlayer", target);
+            }
 
-          setTimeout(() => {
-            io.to(mapRoom(target.currentMapId)).emit("playerMoved", target);
-          }, 2000);
+            const mapPlayers: Record<string, typeof target> = {};
+            for (const [id, p] of Object.entries(players)) {
+              if (p.currentMapId === target.currentMapId) {
+                mapPlayers[id] = p;
+              }
+            }
+            targetSocket.emit("playerUpdated", target);
+            targetSocket.emit("currentPlayers", mapPlayers);
+            targetSocket.emit("monstersUpdate", getMonstersOnMap(target.currentMapId));
+          }
         }
       }
     }

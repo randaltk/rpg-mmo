@@ -264,7 +264,7 @@ const DamageNumberManager = memo(function DamageNumberManager() {
         const filtered = prev.filter((e: any) => now - e._spawnTime < 1500);
         return filtered.length !== prev.length ? filtered : prev;
       });
-    }, 200);
+    }, 100);
     return () => clearInterval(interval);
   }, []);
 
@@ -307,7 +307,8 @@ function CombatController() {
 
     const attackInterval = setInterval(() => {
       const tid = targetMonsterId;
-      const m = monstersRef.current.find(m => m.id === tid);
+      const liveMonsters = useGameStore.getState().monstersData;
+      const m = liveMonsters?.find(m => m.id === tid);
       if (!m || m.state === "dead") return;
 
       const localPos = useGameStore.getState().localPlayerPos;
@@ -429,7 +430,6 @@ export default function GameScene({
         />
       ))}
 
-      {/* Damage Numbers - rendered via useFrame, no React state */}
       <DamageNumberManager />
 
       <PostProcessing isCave={isCave} isCastle={isCastle} />

@@ -6,7 +6,7 @@ import { allMaps } from "@/data/maps";
 import { useGameStore } from "@/stores/gameStore";
 
 interface UseGameControlsProps {
-  currentPlayer: { x: number; y: number; z: number } | null;
+  currentPlayer: { x: number; y: number; z: number; currentMapId?: string } | null;
   movePlayer: (pos: { x: number; y: number; z: number }) => void;
   emitMove: (pos: { x: number; y: number; z: number }) => void;
   emitChangeMap: (mapId: string) => void;
@@ -25,6 +25,13 @@ export function useGameControls({
   const [currentMap, setCurrentMap] = useState<GameMap>(allMaps.castle);
   const currentMapRef = useRef(currentMap);
   currentMapRef.current = currentMap;
+
+  useEffect(() => {
+    const mapId = currentPlayer?.currentMapId;
+    if (mapId && allMaps[mapId] && currentMapRef.current.id !== mapId) {
+      setCurrentMap(allMaps[mapId]);
+    }
+  }, [currentPlayer?.currentMapId]);
 
   const keysPressed = useRef(new Set<string>());
   const currentPlayerRef = useRef(currentPlayer);

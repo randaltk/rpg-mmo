@@ -104,15 +104,35 @@ function SlimeModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: boole
     bodyRef.current.scale.set(squishXZ, squishY, squishXZ);
 
     if (monster.state === "attacking") {
-      const attackPulse = Math.abs(Math.sin(t * 14)) * 0.35;
-      bodyRef.current.position.y = attackPulse;
-      bodyRef.current.scale.y = 0.8 + attackPulse * 0.5;
-      bodyRef.current.scale.x = 1.1 - attackPulse * 0.2;
-      bodyRef.current.scale.z = 1.1 - attackPulse * 0.2;
+      const cycle = (t * 6) % 1;
+      if (cycle < 0.3) {
+        // Windup: compress down
+        const p = cycle / 0.3;
+        bodyRef.current.position.y = 0;
+        bodyRef.current.scale.y = squishY * (1 - p * 0.35);
+        bodyRef.current.scale.x = squishXZ * (1 + p * 0.2);
+        bodyRef.current.scale.z = squishXZ * (1 + p * 0.2);
+      } else if (cycle < 0.55) {
+        // Launch: spring up
+        const p = (cycle - 0.3) / 0.25;
+        const jumpHeight = Math.sin(p * Math.PI) * 0.6;
+        bodyRef.current.position.y = jumpHeight;
+        bodyRef.current.scale.y = squishY * (0.65 + p * 0.7);
+        bodyRef.current.scale.x = squishXZ * (1.2 - p * 0.35);
+        bodyRef.current.scale.z = squishXZ * (1.2 - p * 0.35);
+      } else {
+        // Land: squash on impact then recover
+        const p = (cycle - 0.55) / 0.45;
+        const bounce = Math.sin(p * Math.PI * 2) * 0.08 * (1 - p);
+        bodyRef.current.position.y = bounce;
+        bodyRef.current.scale.y = squishY * (0.85 + p * 0.15);
+        bodyRef.current.scale.x = squishXZ * (1.05 - p * 0.05);
+        bodyRef.current.scale.z = squishXZ * (1.05 - p * 0.05);
+      }
     } else if (monster.state === "hurt") {
-      bodyRef.current.position.y = Math.sin(t * 25) * 0.12;
-      bodyRef.current.scale.x = 1 + Math.sin(t * 30) * 0.15;
-      bodyRef.current.scale.z = 1 + Math.cos(t * 30) * 0.15;
+      bodyRef.current.position.y = Math.sin(t * 20) * 0.1 * Math.max(0, 1 - (t % 1) * 2);
+      bodyRef.current.scale.x = squishXZ + Math.sin(t * 25) * 0.12;
+      bodyRef.current.scale.z = squishXZ + Math.cos(t * 25) * 0.12;
     } else if (monster.state === "chasing" || monster.state === "wandering") {
       const hop = Math.abs(Math.sin(t * 5)) * 0.12;
       bodyRef.current.position.y = hop;
@@ -284,25 +304,51 @@ function GoblinModel({ monster, hurtFlash }: { monster: Monster; hurtFlash: bool
 
     if (leftArmRef.current && rightArmRef.current) {
       if (monster.state === "attacking") {
-        const attackPhase = Math.sin(t * 10);
-        rightArmRef.current.rotation.x = -1.5 + attackPhase * 1.0;
-        rightArmRef.current.rotation.z = -0.3 + Math.abs(attackPhase) * 0.2;
-        leftArmRef.current.rotation.x = -0.4 + attackPhase * 0.2;
+        const cycle = (t * 8) % (Math.PI * 2);
+        const windUp = cycle < Math.PI * 0.4;
+        if (windUp) {
+          const p = cycle / (Math.PI * 0.4);
+          rightArmRef.current.rotation.x = -0.3 + p * 1.2;
+          rightArmRef.current.rotation.z = -0.1 - p * 0.3;
+          leftArmRef.current.rotation.x = -0.2 - p * 0.3;
+        } else {
+          const p = (cycle - Math.PI * 0.4) / (Math.PI * 1.6);
+          const smash = Math.sin(p * Math.PI);
+          rightArmRef.current.rotation.x = 0.9 - 2.8 * smash;
+          rightArmRef.current.rotation.z = -0.4 + 0.3 * smash;
+          leftArmRef.current.rotation.x = -0.5 + 0.4 * smash;
+        }
+        bodyRef.current!.rotation.y = Math.sin(cycle) * 0.15;
       } else if (monster.state === "hurt") {
-        const flinch = Math.sin(t * 20) * 0.3;
-        leftArmRef.current.rotation.x = -0.5 + flinch;
-        rightArmRef.current.rotation.x = -0.5 - flinch;
+        const flinch = Math.sin(t * 20) * 0.4;
+        leftArmRef.current.rotation.x = -0.6 + flinch;
+        rightArmRef.current.rotation.x = -0.6 - flinch;
+        leftArmRef.current.rotation.z = 0.3;
+        rightArmRef.current.rotation.z = -0.3;
+        if (bodyRef.current) bodyRef.current.rotation.z = Math.sin(t * 25) * 0.08;
       } else {
         leftArmRef.current.rotation.x = -swing * 0.6 + Math.sin(breathCycle.current) * 0.02;
         rightArmRef.current.rotation.x = swing * 0.6 + Math.sin(breathCycle.current) * 0.02;
+        leftArmRef.current.rotation.z = THREE.MathUtils.lerp(leftArmRef.current.rotation.z, 0, delta * 5);
+        rightArmRef.current.rotation.z = THREE.MathUtils.lerp(rightArmRef.current.rotation.z, 0, delta * 5);
+        if (bodyRef.current) {
+          bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0, delta * 4);
+          bodyRef.current.rotation.z = THREE.MathUtils.lerp(bodyRef.current.rotation.z, 0, delta * 5);
+        }
       }
     }
 
     if (headRef.current) {
       if (monster.state === "attacking") {
-        headRef.current.rotation.x = -0.15 + Math.sin(t * 10) * 0.1;
+        const cycle = (t * 8) % (Math.PI * 2);
+        headRef.current.rotation.x = -0.2 + Math.sin(cycle) * 0.15;
+        headRef.current.rotation.z = Math.sin(cycle * 0.5) * 0.05;
+      } else if (monster.state === "hurt") {
+        headRef.current.rotation.x = 0.15;
+        headRef.current.rotation.z = Math.sin(t * 20) * 0.1;
       } else {
-        headRef.current.rotation.x = Math.sin(breathCycle.current * 0.5) * 0.03;
+        headRef.current.rotation.x = THREE.MathUtils.lerp(headRef.current.rotation.x, Math.sin(breathCycle.current * 0.5) * 0.03, delta * 4);
+        headRef.current.rotation.z = THREE.MathUtils.lerp(headRef.current.rotation.z, 0, delta * 4);
       }
     }
   });
@@ -577,7 +623,7 @@ function MonsterCharacter({ monster, isTarget, onClick }: MonsterCharacterProps)
 
     if (monster.state === "hurt" && lastHurtState.current !== "hurt") {
       setHurtFlash(true);
-      setTimeout(() => setHurtFlash(false), 150);
+      setTimeout(() => setHurtFlash(false), 250);
     }
     lastHurtState.current = monster.state;
     monsterPerfLog.tick(performance.now() - fStart);

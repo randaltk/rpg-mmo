@@ -127,6 +127,12 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         store.addAttackingPlayer(event.attackerId);
         setTimeout(() => useGameStore.getState().removeAttackingPlayer(event.attackerId), 400);
       }
+
+      if (event.type === 'playerDeath' && event.targetId === newSocket.id) {
+        setTargetMonsterId(null);
+        useGameStore.getState().setCombatTarget(null);
+        useGameStore.getState().setTeleportTo({ x: 0, y: 0, z: 0 });
+      }
     };
 
     const handlePlayerUpdated = (player: Player) => {

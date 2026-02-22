@@ -126,30 +126,71 @@ export function useCharacterAnimation({
     }
 
     if (attackAnim.current > 0) {
-      attackAnim.current = Math.max(0, attackAnim.current - delta * 3.5);
+      attackAnim.current = Math.max(0, attackAnim.current - delta * 2.8);
       if (attackAnim.current <= 0) isAttackingRef.current = false;
 
       const at = attackAnim.current;
-      const phase = at > 0.6 ? (1 - at) / 0.4 : at > 0.3 ? 1 : at / 0.3;
-      const swingCurve = Math.sin(phase * Math.PI);
+
+      // 3-phase attack: wind-up (1.0→0.7), swing (0.7→0.35), recovery (0.35→0)
+      let weaponX = 0, weaponZ = 0, bodyRot = 0, headRot = 0;
+      let leftArmX = 0, leftArmZ = 0;
+      let stepForward = 0;
+
+      if (at > 0.7) {
+        // Wind-up: arm pulls back, body coils
+        const p = (1 - at) / 0.3; // 0→1
+        const ease = p * p;
+        weaponX = 0.8 * ease;  // arm goes back
+        weaponZ = 0.3 * ease;
+        bodyRot = 0.25 * ease; // body coils opposite
+        headRot = 0.1 * ease;
+        leftArmX = -0.2 * ease;
+      } else if (at > 0.35) {
+        // Swing: fast forward slash
+        const p = (0.7 - at) / 0.35; // 0→1
+        const ease = Math.sin(p * Math.PI * 0.5); // fast start
+        weaponX = 0.8 - 3.2 * ease;   // goes from back to far forward
+        weaponZ = 0.3 - 1.2 * ease;
+        bodyRot = 0.25 - 0.7 * ease;  // body rotates into swing
+        headRot = 0.1 - 0.3 * ease;
+        leftArmX = -0.2 + 0.6 * ease; // off-hand pulls back for balance
+        leftArmZ = 0.15 * ease;
+        stepForward = 0.06 * ease;     // small lunge
+      } else {
+        // Recovery: smooth return to neutral
+        const p = at / 0.35; // 1→0
+        const ease = p * p;
+        weaponX = -2.4 * ease;
+        weaponZ = -0.9 * ease;
+        bodyRot = -0.45 * ease;
+        headRot = -0.2 * ease;
+        leftArmX = 0.4 * ease;
+        leftArmZ = 0.15 * ease;
+        stepForward = 0.06 * ease;
+      }
 
       if (weaponArmRef.current) {
-        weaponArmRef.current.rotation.x = -2.2 * swingCurve;
-        weaponArmRef.current.rotation.z = -0.8 * swingCurve;
+        weaponArmRef.current.rotation.x = weaponX;
+        weaponArmRef.current.rotation.z = weaponZ;
       }
       if (leftArmRef.current) {
-        leftArmRef.current.rotation.x = 0.4 * swingCurve;
-        leftArmRef.current.rotation.z = 0.2 * swingCurve;
+        leftArmRef.current.rotation.x = leftArmX;
+        leftArmRef.current.rotation.z = leftArmZ;
       }
       if (bodyRef.current) {
-        bodyRef.current.rotation.y = -0.35 * swingCurve;
+        bodyRef.current.rotation.y = bodyRot;
         bodyRef.current.rotation.z = sideLean;
-        bodyRef.current.scale.set(1, 1, 1);
         bodyRef.current.position.y = 0;
+        bodyRef.current.position.z = stepForward;
+        bodyRef.current.scale.set(1, 1, 1);
       }
       if (headRef.current) {
-        headRef.current.rotation.y = -0.15 * swingCurve;
+        headRef.current.rotation.y = headRot;
         headRef.current.position.y = 1.65;
+      }
+      if (leftLegRef.current && rightLegRef.current) {
+        leftLegRef.current.rotation.x = THREE.MathUtils.lerp(leftLegRef.current.rotation.x, -stepForward * 3, delta * 10);
+        rightLegRef.current.rotation.x = THREE.MathUtils.lerp(rightLegRef.current.rotation.x, stepForward * 4, delta * 10);
       }
     } else {
       if (weaponArmRef.current) {
