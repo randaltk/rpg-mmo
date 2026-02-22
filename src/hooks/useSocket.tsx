@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Player, ChatMessage, MovementData, InteractionData, Monster, CombatEvent } from '@/types/game';
+import { Player, ChatMessage, MovementData, InteractionData, Monster, CombatEvent, PortalTier } from '@/types/game';
 import type { WorldSeed } from '@/lib/worldgen/seed';
 import { useGameStore } from '@/stores/gameStore';
 
@@ -16,6 +16,7 @@ interface SocketContextType {
   movePlayer: (position: MovementData) => void;
   emitMove: (position: MovementData) => void;
   emitChangeMap: (mapId: string) => void;
+  emitEnterDungeon: (data: { caveSeed: number; tier: PortalTier; portalX: number; portalZ: number }) => void;
   sendChatMessage: (message: string) => void;
   interact: (interactionData: InteractionData) => void;
   equipItem: (itemId: string, slot: 'weapon' | 'armor' | 'accessory') => void;
@@ -199,6 +200,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     socketRef.current?.emit('changeMap', { mapId });
   }, []);
 
+  const emitEnterDungeon = useCallback((data: { caveSeed: number; tier: PortalTier; portalX: number; portalZ: number }) => {
+    socketRef.current?.emit('enterDungeon', data);
+  }, []);
+
   const movePlayer = useCallback((position: MovementData) => {
     if (socketRef.current && currentPlayer) {
       const updatedPlayer = { ...currentPlayer, ...position };
@@ -231,7 +236,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     socket, isConnected, players, currentPlayer, chatMessages,
     monsters, targetMonsterId,
-    joinGame, movePlayer, emitMove, emitChangeMap, sendChatMessage, interact, equipItem, attackMonster, setTargetMonsterId,
+    joinGame, movePlayer, emitMove, emitChangeMap, emitEnterDungeon, sendChatMessage, interact, equipItem, attackMonster, setTargetMonsterId,
   };
 
   return (

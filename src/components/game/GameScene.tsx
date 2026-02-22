@@ -23,6 +23,7 @@ import type { BiomeType } from "@/types/game";
 const perfLog = new PerfMonitor("GameScene");
 
 const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
+  const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.ShaderMaterial>(null);
 
   const uniforms = useMemo(() => ({
@@ -34,10 +35,9 @@ const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
   }), [isCave]);
 
   const vertexShader = `
-    varying vec3 vWorldPosition;
+    varying vec3 vLocalPosition;
     void main() {
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      vWorldPosition = worldPosition.xyz;
+      vLocalPosition = position;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `;
@@ -48,9 +48,9 @@ const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
     uniform vec3 horizonColor;
     uniform float offset;
     uniform float exponent;
-    varying vec3 vWorldPosition;
+    varying vec3 vLocalPosition;
     void main() {
-      float h = normalize(vWorldPosition + offset).y;
+      float h = normalize(vLocalPosition + offset).y;
       float t = max(pow(max(h, 0.0), exponent), 0.0);
       vec3 sky = mix(horizonColor, topColor, t);
       float b = max(pow(max(-h, 0.0), exponent * 2.0), 0.0);
@@ -59,9 +59,17 @@ const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
     }
   `;
 
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const pos = useGameStore.getState().localPlayerPos;
+    if (pos) {
+      meshRef.current.position.set(pos.x, 0, pos.z);
+    }
+  });
+
   return (
-    <mesh>
-      <sphereGeometry args={[400, 16, 16]} />
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[500, 16, 16]} />
       <shaderMaterial
         ref={matRef}
         vertexShader={vertexShader}
@@ -74,12 +82,26 @@ const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
   );
 });
 
+const SUN_OFFSET = new THREE.Vector3(40, 35, -30);
+
 const Sun = memo(function Sun() {
-  const sunRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    if (!groupRef.current) return;
+    const pos = useGameStore.getState().localPlayerPos;
+    if (pos) {
+      groupRef.current.position.set(
+        pos.x + SUN_OFFSET.x,
+        SUN_OFFSET.y,
+        pos.z + SUN_OFFSET.z,
+      );
+    }
+  });
 
   return (
-    <group position={[40, 35, -30]}>
-      <mesh ref={sunRef}>
+    <group ref={groupRef} position={[SUN_OFFSET.x, SUN_OFFSET.y, SUN_OFFSET.z]}>
+      <mesh>
         <sphereGeometry args={[5, 16, 16]} />
         <meshBasicMaterial color="#FFF5D4" />
       </mesh>
@@ -87,7 +109,6 @@ const Sun = memo(function Sun() {
         <sphereGeometry args={[7, 16, 16]} />
         <meshBasicMaterial color="#FFF5D4" transparent opacity={0.15} />
       </mesh>
-      <pointLight color="#FFF0D0" intensity={0.6} distance={200} />
     </group>
   );
 });
@@ -95,17 +116,17 @@ const Sun = memo(function Sun() {
 const Clouds = memo(function Clouds() {
   const cloudsData = useMemo(() => {
     const data = [];
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const radius = 30 + Math.sin(i * 3.7) * 15;
+    for (let i = 0; i < 10; i++) {
+      const angle = (i / 10) * Math.PI * 2;
+      const radius = 40 + Math.sin(i * 3.7) * 30;
       data.push({
         x: Math.cos(angle) * radius,
-        y: 18 + Math.sin(i * 2.3) * 5,
+        y: 25 + Math.sin(i * 2.3) * 8,
         z: Math.sin(angle) * radius,
-        scaleX: 3 + Math.sin(i * 1.7) * 2,
+        scaleX: 4 + Math.sin(i * 1.7) * 3,
         scaleY: 0.6 + Math.sin(i * 2.9) * 0.3,
-        scaleZ: 2 + Math.cos(i * 1.3) * 1,
-        opacity: 0.35 + Math.sin(i * 4.1) * 0.15,
+        scaleZ: 3 + Math.cos(i * 1.3) * 2,
+        opacity: 0.3 + Math.sin(i * 4.1) * 0.12,
       });
     }
     return data;
@@ -114,15 +135,18 @@ const Clouds = memo(function Clouds() {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = state.clock.elapsedTime * 0.003;
+    if (!groupRef.current) return;
+    const pos = useGameStore.getState().localPlayerPos;
+    if (pos) {
+      groupRef.current.position.set(pos.x, 0, pos.z);
     }
+    groupRef.current.rotation.y = state.clock.elapsedTime * 0.003;
   });
 
   return (
     <group ref={groupRef}>
       {cloudsData.map((c, i) => (
-        <Sphere key={i} args={[1, 8, 8]} position={[c.x, c.y, c.z]} scale={[c.scaleX, c.scaleY, c.scaleZ]}>
+        <Sphere key={i} args={[1, 6, 6]} position={[c.x, c.y, c.z]} scale={[c.scaleX, c.scaleY, c.scaleZ]}>
           <meshStandardMaterial color="#ffffff" transparent opacity={c.opacity} roughness={1} />
         </Sphere>
       ))}
@@ -130,20 +154,25 @@ const Clouds = memo(function Clouds() {
   );
 });
 
+const _fogTargetColor = new THREE.Color();
+
 const BiomeFog = memo(function BiomeFog({ biome }: { biome: BiomeType }) {
   const fogRef = useRef<THREE.Fog>(null);
   const config = BIOME_CONFIGS[biome];
 
   useFrame((_, delta) => {
     if (!fogRef.current) return;
-    const target = new THREE.Color(config.fogColor);
-    fogRef.current.color.lerp(target, Math.min(1, delta * 2));
-    fogRef.current.near += (config.fogNear - fogRef.current.near) * Math.min(1, delta * 2);
-    fogRef.current.far += (config.fogFar - fogRef.current.far) * Math.min(1, delta * 2);
+    _fogTargetColor.set(config.fogColor);
+    const t = Math.min(1, delta * 2);
+    fogRef.current.color.lerp(_fogTargetColor, t);
+    fogRef.current.near += (config.fogNear - fogRef.current.near) * t;
+    fogRef.current.far += (config.fogFar - fogRef.current.far) * t;
   });
 
   return <fog ref={fogRef} attach="fog" args={[config.fogColor, config.fogNear, config.fogFar]} />;
 });
+
+const _ambientTargetColor = new THREE.Color();
 
 const BiomeAmbient = memo(function BiomeAmbient({ biome }: { biome: BiomeType }) {
   const lightRef = useRef<THREE.AmbientLight>(null);
@@ -151,12 +180,58 @@ const BiomeAmbient = memo(function BiomeAmbient({ biome }: { biome: BiomeType })
 
   useFrame((_, delta) => {
     if (!lightRef.current) return;
-    const target = new THREE.Color(config.ambientColor);
-    lightRef.current.color.lerp(target, Math.min(1, delta * 2));
-    lightRef.current.intensity += (config.ambientIntensity - lightRef.current.intensity) * Math.min(1, delta * 2);
+    _ambientTargetColor.set(config.ambientColor);
+    const t = Math.min(1, delta * 2);
+    lightRef.current.color.lerp(_ambientTargetColor, t);
+    lightRef.current.intensity += (config.ambientIntensity - lightRef.current.intensity) * t;
   });
 
   return <ambientLight ref={lightRef} intensity={config.ambientIntensity} color={config.ambientColor} />;
+});
+
+const FollowDirectionalLight = memo(function FollowDirectionalLight({
+  offset, intensity, color, castShadow,
+}: {
+  offset: [number, number, number];
+  intensity: number;
+  color: string;
+  castShadow?: boolean;
+}) {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+
+  useEffect(() => {
+    if (!lightRef.current) return;
+    const light = lightRef.current;
+    light.parent?.add(light.target);
+    return () => {
+      light.parent?.remove(light.target);
+    };
+  }, []);
+
+  useFrame(() => {
+    const pos = useGameStore.getState().localPlayerPos;
+    if (!pos || !lightRef.current) return;
+    lightRef.current.position.set(pos.x + offset[0], offset[1], pos.z + offset[2]);
+    lightRef.current.target.position.set(pos.x, pos.y ?? 0, pos.z);
+    lightRef.current.target.updateMatrixWorld();
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      position={[offset[0], offset[1], offset[2]]}
+      intensity={intensity}
+      color={color}
+      castShadow={castShadow}
+      shadow-mapSize-width={castShadow ? 1024 : undefined}
+      shadow-mapSize-height={castShadow ? 1024 : undefined}
+      shadow-camera-far={castShadow ? 50 : undefined}
+      shadow-camera-left={castShadow ? -20 : undefined}
+      shadow-camera-right={castShadow ? 20 : undefined}
+      shadow-camera-top={castShadow ? 20 : undefined}
+      shadow-camera-bottom={castShadow ? -20 : undefined}
+    />
+  );
 });
 
 const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTown, isIndoor, playerBiome }: { isCave: boolean; isCastle: boolean; isTown: boolean; isIndoor: boolean; playerBiome: BiomeType }) {
@@ -183,25 +258,42 @@ const SceneEnvironment = memo(function SceneEnvironment({ isCave, isCastle, isTo
         ]}
       />
 
-      <directionalLight
-        position={isCastle ? [0, 6, 0] : [15, 20, 10]}
-        intensity={isCastle ? 0.3 : isCave ? 0.15 : 1.5}
-        color={isCastle ? "#FF8C00" : isCave ? "#3a3a6e" : "#FFF0D0"}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-far={40}
-        shadow-camera-left={-15}
-        shadow-camera-right={15}
-        shadow-camera-top={15}
-        shadow-camera-bottom={-15}
-      />
-
-      <directionalLight
-        position={isCastle ? [0, 5, 10] : [-10, 8, -8]}
-        intensity={isCastle ? 0.15 : isCave ? 0.05 : 0.4}
-        color={isCastle ? "#FFD0A0" : isCave ? "#1a1a3a" : "#FFE4C4"}
-      />
+      {isTown ? (
+        <>
+          <FollowDirectionalLight
+            offset={[15, 20, 10]}
+            intensity={1.5}
+            color="#FFF0D0"
+            castShadow
+          />
+          <FollowDirectionalLight
+            offset={[-10, 8, -8]}
+            intensity={0.4}
+            color="#FFE4C4"
+          />
+        </>
+      ) : (
+        <>
+          <directionalLight
+            position={isCastle ? [0, 6, 0] : [15, 20, 10]}
+            intensity={isCastle ? 0.3 : isCave ? 0.15 : 1.5}
+            color={isCastle ? "#FF8C00" : isCave ? "#3a3a6e" : "#FFF0D0"}
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-camera-far={40}
+            shadow-camera-left={-15}
+            shadow-camera-right={15}
+            shadow-camera-top={15}
+            shadow-camera-bottom={-15}
+          />
+          <directionalLight
+            position={isCastle ? [0, 5, 10] : [-10, 8, -8]}
+            intensity={isCastle ? 0.15 : isCave ? 0.05 : 0.4}
+            color={isCastle ? "#FFD0A0" : isCave ? "#1a1a3a" : "#FFE4C4"}
+          />
+        </>
+      )}
 
       {isTown ? (
         <BiomeAmbient biome={playerBiome} />
@@ -367,7 +459,7 @@ export default function GameScene({
   interactionMessage,
   onInteractionMessage,
 }: GameSceneProps) {
-  const { players, currentPlayer, movePlayer, emitMove, emitChangeMap, monsters, targetMonsterId, setTargetMonsterId } = useSocket();
+  const { players, currentPlayer, movePlayer, emitMove, emitChangeMap, emitEnterDungeon, monsters, targetMonsterId, setTargetMonsterId } = useSocket();
 
   const prevMonsters = useRef(monsters);
   const prevPlayers = useRef(players);
@@ -380,6 +472,7 @@ export default function GameScene({
     movePlayer,
     emitMove,
     emitChangeMap,
+    emitEnterDungeon,
     onInventoryToggle,
     onInteractionMessage,
   });
@@ -402,7 +495,7 @@ export default function GameScene({
     return () => { useGameStore.getState().setClearTarget(null); };
   }, [setTargetMonsterId]);
 
-  const isCave = currentMap.id === "cave";
+  const isCave = currentMap.id === "cave" || currentMap.id.startsWith("dungeon_");
   const isCastle = currentMap.id === "castle";
   const isTown = currentMap.id === "town";
   const isIndoor = isCave || isCastle;

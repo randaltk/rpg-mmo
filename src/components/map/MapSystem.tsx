@@ -1,18 +1,22 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, memo } from 'react';
+import { useEffect, useState, useRef, useCallback, memo, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { GameMap, MapObject } from '@/types/game';
 import { useGameStore } from '@/stores/gameStore';
-import { getHeightAt } from '@/lib/worldgen/terrain';
+import { getHeightAt, createTerrainSampler } from '@/lib/worldgen/terrain';
+import { createBiomeSampler } from '@/lib/worldgen/biomes';
+import { generateChunkObjects, OBJ_CHUNK_SIZE } from '@/lib/worldgen/objects';
+import { TOWN_SEED } from '@/data/maps/town';
 import { MapObjectComponent } from './objects/MapObjectComponent';
 import { NPCComponent } from './npc/NPCComponent';
 import { Ground } from './Ground';
 
 const OBJECT_VIEW_DIST = 70;
 const OBJECT_VIEW_DIST_SQ = OBJECT_VIEW_DIST * OBJECT_VIEW_DIST;
-const CHUNK_SIZE = 30;
+const CHUNK_SIZE = OBJ_CHUNK_SIZE;
 const UPDATE_INTERVAL = 0.3;
+const CHUNK_DISCARD_DIST = 5;
 
 interface ChunkMap {
   [key: string]: MapObject[];
@@ -62,26 +66,63 @@ interface MapSystemProps {
 }
 
 export default function MapSystem({ currentMap }: MapSystemProps) {
+  const isTown = currentMap.id === 'town';
+  const isInfinite = !!(currentMap.infinite ?? isTown);
+
+  const resolvedSamplers = useMemo(() => {
+    if (currentMap.terrainSampler && currentMap.biomeSampler) {
+      return { terrain: currentMap.terrainSampler, biome: currentMap.biomeSampler };
+    }
+    if (!isTown) return null;
+    return { terrain: createTerrainSampler(TOWN_SEED), biome: createBiomeSampler(TOWN_SEED) };
+  }, [currentMap.terrainSampler, currentMap.biomeSampler, isTown]);
+
+  const samplers = useRef(resolvedSamplers);
+  samplers.current = resolvedSamplers;
+
   const chunkMapRef = useRef<ChunkMap>({});
+  const infiniteChunkCacheRef = useRef<Map<string, MapObject[]>>(new Map());
   const [visibleObjects, setVisibleObjects] = useState<MapObject[]>([]);
   const timerRef = useRef(0);
   const lastChunkKeyRef = useRef('');
 
   useEffect(() => {
-    chunkMapRef.current = buildChunkMap(currentMap.objects);
-  }, [currentMap.objects]);
+    if (!isInfinite) {
+      chunkMapRef.current = buildChunkMap(currentMap.objects);
+    }
+    lastChunkKeyRef.current = '';
+    infiniteChunkCacheRef.current.clear();
+  }, [currentMap.objects, isInfinite]);
 
-  const checkCollision = useCallback((x: number, y: number, z: number) => {
-    const halfW = currentMap.width / 2;
-    const halfH = currentMap.height / 2;
-    if (x < -halfW + 1 || x > halfW - 1 || z < -halfH + 1 || z > halfH - 1) {
-      return false;
+  const getOrGenerateChunk = useCallback((cx: number, cz: number): MapObject[] => {
+    const key = `${cx},${cz}`;
+    const cache = infiniteChunkCacheRef.current;
+    if (cache.has(key)) return cache.get(key)!;
+
+    const s = samplers.current;
+    if (!s) return [];
+    const objs = generateChunkObjects(cx, cz, TOWN_SEED, s.biome, s.terrain);
+    cache.set(key, objs);
+    return objs;
+  }, []);
+
+  const checkCollision = useCallback((x: number, _y: number, _z: number) => {
+    if (!isInfinite) {
+      const halfW = currentMap.width / 2;
+      const halfH = currentMap.height / 2;
+      if (x < -halfW + 1 || x > halfW - 1 || _z < -halfH + 1 || _z > halfH - 1) {
+        return false;
+      }
     }
 
-    if (currentMap.heightmap && currentMap.heightmapResolution) {
-      const terrainY = getHeightAt(x, z, currentMap.heightmap, currentMap.width, currentMap.height, currentMap.heightmapResolution);
-      const maxSlope = 10;
-      if (terrainY > maxSlope) return false;
+    const s = samplers.current;
+    if (s) {
+      const terrainY = s.terrain(x, _z);
+      const slopeDiff = Math.abs(terrainY - _y);
+      if (slopeDiff > 3) return false;
+    } else if (currentMap.heightmap && currentMap.heightmapResolution) {
+      const terrainY = getHeightAt(x, _z, currentMap.heightmap, currentMap.width, currentMap.height, currentMap.heightmapResolution);
+      if (terrainY > 10) return false;
     }
 
     for (const obj of currentMap.objects) {
@@ -90,16 +131,16 @@ export default function MapSystem({ currentMap }: MapSystemProps) {
       if (
         x + playerSize > obj.x - obj.width / 2 &&
         x - playerSize < obj.x + obj.width / 2 &&
-        y + playerSize > obj.y - obj.height / 2 &&
-        y - playerSize < obj.y + obj.height / 2 &&
-        z + playerSize > obj.z - obj.depth / 2 &&
-        z - playerSize < obj.z + obj.depth / 2
+        _y + playerSize > obj.y - obj.height / 2 &&
+        _y - playerSize < obj.y + obj.height / 2 &&
+        _z + playerSize > obj.z - obj.depth / 2 &&
+        _z - playerSize < obj.z + obj.depth / 2
       ) {
         return false;
       }
     }
     return true;
-  }, [currentMap]);
+  }, [currentMap, isInfinite]);
 
   useEffect(() => {
     useGameStore.getState().setCheckCollision(checkCollision);
@@ -120,17 +161,43 @@ export default function MapSystem({ currentMap }: MapSystemProps) {
     lastChunkKeyRef.current = chunkKey;
 
     const keys = getVisibleChunkKeys(px, pz);
-    const chunks = chunkMapRef.current;
     const visible: MapObject[] = [];
 
-    for (const key of keys) {
-      const objs = chunks[key];
-      if (!objs) continue;
-      for (const obj of objs) {
-        const dx = obj.x - px;
-        const dz = obj.z - pz;
-        if (dx * dx + dz * dz < OBJECT_VIEW_DIST_SQ) {
-          visible.push(obj);
+    if (isInfinite) {
+      const pcx = Math.floor(px / CHUNK_SIZE);
+      const pcz = Math.floor(pz / CHUNK_SIZE);
+
+      for (const key of keys) {
+        const [cx, cz] = key.split(',').map(Number);
+        const objs = getOrGenerateChunk(cx, cz);
+        for (const obj of objs) {
+          const dx = obj.x - px;
+          const dz = obj.z - pz;
+          if (dx * dx + dz * dz < OBJECT_VIEW_DIST_SQ) {
+            visible.push(obj);
+          }
+        }
+      }
+
+      // Prune distant chunks
+      const cache = infiniteChunkCacheRef.current;
+      Array.from(cache.keys()).forEach(cacheKey => {
+        const [cx, cz] = cacheKey.split(',').map(Number);
+        if (Math.abs(cx - pcx) > CHUNK_DISCARD_DIST || Math.abs(cz - pcz) > CHUNK_DISCARD_DIST) {
+          cache.delete(cacheKey);
+        }
+      });
+    } else {
+      const chunks = chunkMapRef.current;
+      for (const key of keys) {
+        const objs = chunks[key];
+        if (!objs) continue;
+        for (const obj of objs) {
+          const dx = obj.x - px;
+          const dz = obj.z - pz;
+          if (dx * dx + dz * dz < OBJECT_VIEW_DIST_SQ) {
+            visible.push(obj);
+          }
         }
       }
     }
@@ -142,6 +209,9 @@ export default function MapSystem({ currentMap }: MapSystemProps) {
     }
 
     setVisibleObjects(visible);
+
+    const portals = visible.filter(o => o.type === 'portal' && o.portalTo?.startsWith('dungeon_'));
+    useGameStore.getState().setNearbyPortals(portals);
   });
 
   useEffect(() => {
@@ -149,26 +219,42 @@ export default function MapSystem({ currentMap }: MapSystemProps) {
     const px = pos?.x ?? 0;
     const pz = pos?.z ?? 0;
     const keys = getVisibleChunkKeys(px, pz);
-    const chunks = chunkMapRef.current;
     const visible: MapObject[] = [];
-    for (const key of keys) {
-      const objs = chunks[key];
-      if (!objs) continue;
-      for (const obj of objs) {
-        const dx = obj.x - px;
-        const dz = obj.z - pz;
-        if (dx * dx + dz * dz < OBJECT_VIEW_DIST_SQ) {
-          visible.push(obj);
+
+    if (isInfinite) {
+      for (const key of keys) {
+        const [cx, cz] = key.split(',').map(Number);
+        const objs = getOrGenerateChunk(cx, cz);
+        for (const obj of objs) {
+          const dx = obj.x - px;
+          const dz = obj.z - pz;
+          if (dx * dx + dz * dz < OBJECT_VIEW_DIST_SQ) {
+            visible.push(obj);
+          }
+        }
+      }
+    } else {
+      const chunks = chunkMapRef.current;
+      for (const key of keys) {
+        const objs = chunks[key];
+        if (!objs) continue;
+        for (const obj of objs) {
+          const dx = obj.x - px;
+          const dz = obj.z - pz;
+          if (dx * dx + dz * dz < OBJECT_VIEW_DIST_SQ) {
+            visible.push(obj);
+          }
         }
       }
     }
+
     for (const obj of currentMap.objects) {
       if ((obj.type === 'portal' || obj.type === 'chest') && !visible.includes(obj)) {
         visible.push(obj);
       }
     }
     setVisibleObjects(visible);
-  }, [currentMap]);
+  }, [currentMap, isInfinite, getOrGenerateChunk]);
 
   return (
     <>
@@ -178,14 +264,7 @@ export default function MapSystem({ currentMap }: MapSystemProps) {
         <NPCComponent key={npc.id} npc={npc} />
       ))}
 
-      <Ground
-        mapId={currentMap.id}
-        width={currentMap.width}
-        height={currentMap.height}
-        heightmap={currentMap.heightmap}
-        resolution={currentMap.heightmapResolution}
-        biomeMap={currentMap.biomeMap}
-      />
+      <Ground currentMap={currentMap} />
     </>
   );
 }

@@ -1,8 +1,11 @@
 import type { MapObject, BiomeType, TreeVariant, RockVariant, StructureVariant } from '@/types/game';
-import { createSeededRNG } from './seed';
+import { createSeededRNG, hashCoord } from './seed';
 import { getHeightAt } from './terrain';
+import type { HeightSampler } from './terrain';
 import { getBiomeAt } from './biomes';
+import type { BiomeSampler } from './biomes';
 import { BIOME_CONFIGS } from './biome-configs';
+import { generateChunkPortal } from './portals';
 
 export interface ObjectGenerationConfig {
   mapWidth: number;
@@ -24,6 +27,8 @@ export const DEFAULT_OBJECT_CONFIG: ObjectGenerationConfig = {
   edgeMargin: 15,
 };
 
+export const OBJ_CHUNK_SIZE = 30;
+
 function weightedPick<T>(items: T[], weights: number[], rng: () => number): T {
   const total = weights.reduce((a, b) => a + b, 0);
   let r = rng() * total;
@@ -34,10 +39,6 @@ function weightedPick<T>(items: T[], weights: number[], rng: () => number): T {
   return items[items.length - 1];
 }
 
-/**
- * Generates a set of scattered points avoiding minimum distance constraints.
- * Simple rejection-based approach (good enough for ~100 points).
- */
 function scatterPoints(
   count: number,
   halfW: number,
@@ -76,6 +77,111 @@ function scatterPoints(
   return points;
 }
 
+/**
+ * Generates objects for a single chunk in an infinite world.
+ * Deterministic: same (chunkX, chunkZ, seed) always produces the same objects.
+ */
+export function generateChunkObjects(
+  chunkX: number,
+  chunkZ: number,
+  seed: number,
+  biomeSampler: BiomeSampler,
+  heightSampler: HeightSampler,
+): MapObject[] {
+  const chunkSeed = hashCoord(chunkX, chunkZ, seed + 3000);
+  const rng = createSeededRNG(chunkSeed);
+  const objects: MapObject[] = [];
+
+  const baseX = chunkX * OBJ_CHUNK_SIZE;
+  const baseZ = chunkZ * OBJ_CHUNK_SIZE;
+
+  const centerX = baseX + OBJ_CHUNK_SIZE / 2;
+  const centerZ = baseZ + OBJ_CHUNK_SIZE / 2;
+  const centerDist = Math.sqrt(centerX * centerX + centerZ * centerZ);
+
+  const safeRadius = 30;
+  if (centerDist < safeRadius) return objects;
+
+  const biome = biomeSampler(centerX, centerZ);
+  const bc = BIOME_CONFIGS[biome];
+
+  const treeCount = Math.floor(3 * bc.treeDensity + rng() * 2);
+  for (let i = 0; i < treeCount; i++) {
+    const x = baseX + rng() * OBJ_CHUNK_SIZE;
+    const z = baseZ + rng() * OBJ_CHUNK_SIZE;
+    const dist = Math.sqrt(x * x + z * z);
+    if (dist < safeRadius) continue;
+
+    const y = heightSampler(x, z);
+    if (y > 9) continue;
+
+    const variant = weightedPick(bc.treeVariants, bc.treeVariantWeights, rng);
+    const scale = 0.7 + rng() * 0.6;
+    const h = 3 + rng() * 3;
+
+    objects.push({
+      id: `tree_c${chunkX}_${chunkZ}_${i}`,
+      type: 'tree',
+      x, y, z: z,
+      width: 1, height: h, depth: 1,
+      solid: false,
+      variant, scale, biome,
+    });
+  }
+
+  const rockCount = Math.floor(1 * bc.rockDensity + rng());
+  for (let i = 0; i < rockCount; i++) {
+    const x = baseX + rng() * OBJ_CHUNK_SIZE;
+    const z = baseZ + rng() * OBJ_CHUNK_SIZE;
+    const dist = Math.sqrt(x * x + z * z);
+    if (dist < safeRadius * 0.8) continue;
+
+    const y = heightSampler(x, z);
+    const variant = weightedPick(bc.rockVariants, bc.rockVariantWeights, rng);
+    const scale = 0.6 + rng() * 0.8;
+
+    objects.push({
+      id: `rock_c${chunkX}_${chunkZ}_${i}`,
+      type: 'rock',
+      x, y, z: z,
+      width: 0.8 + rng() * 1.5,
+      height: 0.5 + rng() * 1.5,
+      depth: 0.8 + rng() * 1.5,
+      solid: false,
+      variant, scale, biome,
+    });
+  }
+
+  if (rng() < bc.structureDensity * 0.3) {
+    const x = baseX + rng() * OBJ_CHUNK_SIZE;
+    const z = baseZ + rng() * OBJ_CHUNK_SIZE;
+    const dist = Math.sqrt(x * x + z * z);
+    if (dist >= safeRadius * 2) {
+      const y = heightSampler(x, z);
+      if (y <= 9) {
+        const variant = weightedPick(bc.structureVariants, bc.structureVariantWeights, rng);
+        const scale = 0.8 + rng() * 0.4;
+        objects.push({
+          id: `struct_c${chunkX}_${chunkZ}`,
+          type: 'structure',
+          x, y, z: z,
+          width: 2, height: 2 + rng() * 2, depth: 2,
+          solid: false,
+          variant, scale, biome,
+        });
+      }
+    }
+  }
+
+  const portal = generateChunkPortal(chunkX, chunkZ, OBJ_CHUNK_SIZE, seed, biomeSampler, heightSampler);
+  if (portal) objects.push(portal);
+
+  return objects;
+}
+
+/**
+ * Generates objects for a finite bounded map.
+ */
 export function generateObjects(
   heightmap: Float32Array,
   seed: number,
@@ -93,7 +199,6 @@ export function generateObjects(
     return getBiomeAt(x, z, biomeMap, config.mapWidth, config.mapHeight, resolution);
   }
 
-  // Trees — minimum 3 units apart, density scaled by biome
   const treePositions = scatterPoints(
     config.treeCount, halfW, halfH, 3, config.safeRadius, config.edgeMargin, rng,
   );
@@ -122,7 +227,6 @@ export function generateObjects(
     });
   }
 
-  // Rocks — minimum 2.5 units apart
   const rockPositions = scatterPoints(
     config.rockCount, halfW, halfH, 2.5, config.safeRadius * 0.8, config.edgeMargin, rng,
   );
@@ -151,7 +255,6 @@ export function generateObjects(
     });
   }
 
-  // Structures — minimum 15 units apart, further from center
   const structPositions = scatterPoints(
     config.structureCount, halfW, halfH, 15, config.safeRadius * 2, config.edgeMargin + 5, rng,
   );

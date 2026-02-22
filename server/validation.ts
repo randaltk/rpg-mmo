@@ -6,11 +6,19 @@ export const VALID_CLASSES: ReadonlySet<string> = new Set<CharacterClass>([
 
 export const VALID_MAPS: ReadonlySet<string> = new Set(["castle", "town", "cave"]);
 
+export function isValidDungeonMapId(id: string): boolean {
+  return /^dungeon_\d+$/.test(id);
+}
+
+export function isValidMapId(id: string): boolean {
+  return VALID_MAPS.has(id) || isValidDungeonMapId(id);
+}
+
 export const VALID_EQUIP_SLOTS: ReadonlySet<string> = new Set(["weapon", "armor", "accessory"]);
 
 export const MAX_NICKNAME_LENGTH = 20;
 export const MAX_CHAT_LENGTH = 200;
-export const MAX_COORDINATE = 500;
+export const MAX_COORDINATE = 50000;
 
 export function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);

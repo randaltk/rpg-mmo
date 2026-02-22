@@ -20,7 +20,7 @@ export default function Game3D({
   return (
     <div className="game-container">
       <Canvas
-        camera={{ position: [0, 6, 8], fov: 60, near: 0.5, far: 800 }}
+        camera={{ position: [0, 6, 8], fov: 60, near: 0.5, far: 1200 }}
         shadows
         gl={{
           antialias: true,

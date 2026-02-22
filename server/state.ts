@@ -1,7 +1,7 @@
 import type { Monster, MonsterVariant } from "@/types/game";
 import type { ServerPlayer, ServerMonster, MonsterBaseStats, Position } from "./types";
 import { createWorldSeed, type WorldSeed } from "@/lib/worldgen/seed";
-import { generateHeightmap, getHeightAt, DEFAULT_TERRAIN_CONFIG } from "@/lib/worldgen/terrain";
+import { createTerrainSampler, type HeightSampler } from "@/lib/worldgen/terrain";
 
 export let players: Record<string, ServerPlayer> = {};
 export let monsters: Record<string, ServerMonster> = {};
@@ -17,16 +17,10 @@ export const MONSTER_MAP = "town";
 const WORLD_BASE_SEED = 42;
 export let worldSeed: WorldSeed = createWorldSeed(WORLD_BASE_SEED);
 
-const townTerrainConfig = { ...DEFAULT_TERRAIN_CONFIG, width: 400, height: 400 };
-export const townHeightmap = generateHeightmap(WORLD_BASE_SEED, townTerrainConfig);
-export const townTerrainMeta = {
-  width: townTerrainConfig.width,
-  height: townTerrainConfig.height,
-  resolution: townTerrainConfig.resolution,
-};
+export const townTerrainSampler: HeightSampler = createTerrainSampler(WORLD_BASE_SEED);
 
 export function getMonsterTerrainY(x: number, z: number): number {
-  return getHeightAt(x, z, townHeightmap, townTerrainMeta.width, townTerrainMeta.height, townTerrainMeta.resolution);
+  return townTerrainSampler(x, z);
 }
 
 export function refreshSeasonalSeed(): void {

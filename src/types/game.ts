@@ -1,4 +1,6 @@
 import type { WorldSeed } from '@/lib/worldgen/seed';
+import type { HeightSampler } from '@/lib/worldgen/terrain';
+import type { BiomeSampler } from '@/lib/worldgen/biomes';
 
 export type CharacterClass = 'knight' | 'paladin' | 'rogue' | 'assassin' | 'ranger' | 'wizard' | 'sorcerer' | 'priest' | 'monk';
 
@@ -10,6 +12,7 @@ export type TreeVariant = 'oak' | 'pine' | 'willow' | 'dead' | 'mushroom' | 'che
 export type RockVariant = 'boulder' | 'crystal' | 'stacked' | 'mossy' | 'flat';
 export type StructureVariant = 'ruins_pillar' | 'ruins_wall' | 'camp' | 'totem' | 'altar';
 export type MonsterVariant = 'fire' | 'ice' | 'poison' | 'golden' | 'warrior' | 'archer' | 'shaman' | 'chief';
+export type PortalTier = 'easy' | 'medium' | 'hard' | 'boss';
 
 export interface Player {
   id: string;
@@ -78,6 +81,7 @@ export interface MapObject {
   biome?: BiomeType;
   scale?: number;
   colorOverride?: string;
+  portalTier?: PortalTier;
 }
 
 export interface GameMap {
@@ -94,6 +98,10 @@ export interface GameMap {
   heightmapResolution?: number;
   biomeMap?: BiomeType[];
   biomeMapResolution?: number;
+  infinite?: boolean;
+  terrainSampler?: HeightSampler;
+  biomeSampler?: BiomeSampler;
+  dungeonOrigin?: { x: number; z: number };
 }
 
 export interface GameState {

@@ -1,6 +1,6 @@
 import { createServer } from "http";
 import { Server, Socket } from "socket.io";
-import type { Item, CharacterClass, CombatEvent } from "@/types/game";
+import type { Item, CharacterClass, CombatEvent, PortalTier } from "@/types/game";
 import type { ServerPlayer } from "./types";
 import {
   players, monsters, worldSeed,
@@ -9,9 +9,9 @@ import {
 import {
   VALID_CLASSES, VALID_MAPS, VALID_EQUIP_SLOTS,
   MAX_NICKNAME_LENGTH, MAX_CHAT_LENGTH,
-  isString, sanitizeString, isValidPosition,
+  isString, sanitizeString, isValidPosition, isValidDungeonMapId,
 } from "./validation";
-import { initMonsters, updateMonsters } from "./monsters";
+import { initMonsters, updateMonsters, spawnDungeonMonsters } from "./monsters";
 
 export function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
   const io = new Server(httpServer, {
@@ -81,7 +81,7 @@ export function setupSocketIO(httpServer: ReturnType<typeof createServer>): Serv
     socket.on("changeMap", (data: unknown) => {
       if (!data || typeof data !== "object") return;
       const { mapId } = data as Record<string, unknown>;
-      if (!isString(mapId) || !VALID_MAPS.has(mapId)) return;
+      if (!isString(mapId) || (!VALID_MAPS.has(mapId) && !isValidDungeonMapId(mapId))) return;
 
       const player = players[socket.id];
       if (!player || player.currentMapId === mapId) return;
@@ -110,6 +110,40 @@ export function setupSocketIO(httpServer: ReturnType<typeof createServer>): Serv
           m.state = "idle";
         }
       }
+    });
+
+    socket.on("enterDungeon", (data: unknown) => {
+      if (!data || typeof data !== "object") return;
+      const { caveSeed, tier, portalX, portalZ } = data as Record<string, unknown>;
+
+      if (typeof caveSeed !== "number" || !isString(tier)) return;
+      const validTiers = ['easy', 'medium', 'hard', 'boss'];
+      if (!validTiers.includes(tier)) return;
+
+      const player = players[socket.id];
+      if (!player) return;
+
+      const mapId = `dungeon_${caveSeed}`;
+
+      spawnDungeonMonsters(mapId, caveSeed, tier as PortalTier);
+
+      const oldMapId = player.currentMapId;
+      player.currentMapId = mapId;
+
+      socket.leave(mapRoom(oldMapId));
+      socket.join(mapRoom(mapId));
+
+      socket.to(mapRoom(oldMapId)).emit("removePlayer", socket.id);
+      socket.to(mapRoom(mapId)).emit("newPlayer", player);
+
+      const mapPlayers: Record<string, ServerPlayer> = {};
+      for (const [id, p] of Object.entries(players)) {
+        if (p.currentMapId === mapId) {
+          mapPlayers[id] = p;
+        }
+      }
+      socket.emit("currentPlayers", mapPlayers);
+      socket.emit("monstersUpdate", getMonstersOnMap(mapId));
     });
 
     socket.on("move", (pos: unknown) => {

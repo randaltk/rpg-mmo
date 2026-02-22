@@ -10,3 +10,13 @@ export const allMaps: Record<string, GameMap> = {
 };
 
 export const defaultMap = castleMap;
+
+const dynamicMaps: Record<string, GameMap> = {};
+
+export function registerDynamicMap(map: GameMap): void {
+  dynamicMaps[map.id] = map;
+}
+
+export function getMap(id: string): GameMap | undefined {
+  return allMaps[id] ?? dynamicMaps[id];
+}

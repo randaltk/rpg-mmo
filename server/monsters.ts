@@ -1,18 +1,128 @@
 import { Server } from "socket.io";
-import type { MonsterSpawn, CombatEvent } from "@/types/game";
+import type { MonsterSpawn, CombatEvent, Monster, PortalTier } from "@/types/game";
 import type { ServerMonster } from "./types";
 import {
   players, monsters, nextMonsterId,
   DEFAULT_MAP, MONSTER_MAP, MONSTER_BASE_STATS, MONSTER_NAMES,
   VARIANT_MODIFIERS, VARIANT_NAMES,
   mapRoom, distanceBetween, getPlayersOnMap, getMonstersOnMap,
-  getMonsterTerrainY,
+  getMonsterTerrainY, worldSeed, townTerrainSampler,
 } from "./state";
-import { generateMonsterSpawns, DEFAULT_MONSTER_CONFIG } from "@/lib/worldgen/monsters";
-import { townHeightmap, townTerrainMeta, worldSeed } from "./state";
-import { generateBiomeMap, DEFAULT_BIOME_CONFIG } from "@/lib/worldgen/biomes";
+import { createBiomeSampler, type BiomeSampler } from "@/lib/worldgen/biomes";
+import { BIOME_CONFIGS } from "@/lib/worldgen/biome-configs";
+import { createSeededRNG, hashCoord } from "@/lib/worldgen/seed";
+import { generateDungeon } from "@/lib/worldgen/dungeon";
 
-let MONSTER_SPAWNS: MonsterSpawn[] = [];
+const REGION_SIZE = 100;
+const SPAWN_SAFE_RADIUS = 40;
+const SPAWNS_PER_REGION = 6;
+const MIN_DIST_BETWEEN_SPAWNS = 18;
+
+function monsterTerrainY(mapId: string, x: number, z: number): number {
+  if (mapId.startsWith('dungeon_')) return 0;
+  return getMonsterTerrainY(x, z);
+}
+
+let biomeSampler: BiomeSampler;
+const regionSpawns = new Map<string, MonsterSpawn[]>();
+const activeRegions = new Set<string>();
+
+function weightedPick<T>(items: T[], weights: number[], rng: () => number): T {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = rng() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
+function generateRegionSpawns(regionX: number, regionZ: number): MonsterSpawn[] {
+  const regionSeed = hashCoord(regionX, regionZ, worldSeed.base + 777);
+  const rng = createSeededRNG(regionSeed);
+  const spawns: MonsterSpawn[] = [];
+
+  const baseX = regionX * REGION_SIZE;
+  const baseZ = regionZ * REGION_SIZE;
+  const placed: { x: number; z: number }[] = [];
+
+  for (let i = 0; i < SPAWNS_PER_REGION; i++) {
+    let attempts = 0;
+    while (attempts < 20) {
+      attempts++;
+      const x = baseX + rng() * REGION_SIZE;
+      const z = baseZ + rng() * REGION_SIZE;
+
+      if (Math.sqrt(x * x + z * z) < SPAWN_SAFE_RADIUS) continue;
+
+      const h = townTerrainSampler(x, z);
+      if (h > 8) continue;
+
+      let tooClose = false;
+      for (const p of placed) {
+        const dx = p.x - x;
+        const dz = p.z - z;
+        if (dx * dx + dz * dz < MIN_DIST_BETWEEN_SPAWNS * MIN_DIST_BETWEEN_SPAWNS) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (tooClose) continue;
+
+      const biome = biomeSampler(x, z);
+      const biomeConfig = BIOME_CONFIGS[biome];
+      const table = biomeConfig.monsterTable;
+      if (table.length === 0) continue;
+
+      const entry = weightedPick(table, table.map(t => t.weight), rng);
+
+      const distFromCenter = Math.sqrt(x * x + z * z);
+      const distScale = Math.min(distFromCenter / 300, 1);
+      const [minLv, maxLv] = entry.levelRange;
+      const level = Math.max(minLv, Math.min(maxLv, Math.round(minLv + (maxLv - minLv) * distScale)));
+
+      const spawnProfile: Record<Monster['type'], { min: number; max: number; rad: number }> = {
+        slime:    { min: 1, max: 1, rad: 3 },
+        wolf:     { min: 1, max: 2, rad: 5 },
+        goblin:   { min: 1, max: 2, rad: 6 },
+        skeleton: { min: 2, max: 4, rad: 8 },
+      };
+      const profile = spawnProfile[entry.type];
+      const count = profile.min + Math.floor(rng() * (profile.max - profile.min + 1));
+      const radius = profile.rad + rng() * 3;
+
+      const colorMap: Record<Monster['type'], string> = {
+        slime: '#4CAF50',
+        goblin: '#5D8C3E',
+        wolf: '#5A5A5A',
+        skeleton: '#E8E0D0',
+      };
+
+      spawns.push({
+        id: `spawn_r${regionX}_${regionZ}_${i}`,
+        type: entry.type,
+        x, z,
+        count, radius, level,
+        color: colorMap[entry.type],
+        variant: entry.variant,
+        biome,
+      });
+
+      placed.push({ x, z });
+      break;
+    }
+  }
+
+  return spawns;
+}
+
+function getOrGenerateRegion(rx: number, rz: number): MonsterSpawn[] {
+  const key = `${rx},${rz}`;
+  if (regionSpawns.has(key)) return regionSpawns.get(key)!;
+  const spawns = generateRegionSpawns(rx, rz);
+  regionSpawns.set(key, spawns);
+  return spawns;
+}
 
 export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster {
   const base = MONSTER_BASE_STATS[spawn.type];
@@ -23,7 +133,7 @@ export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster 
   const z = spawn.z + Math.sin(angle) * dist;
   const id = nextMonsterId();
 
-  const terrainY = getMonsterTerrainY(x, z);
+  const terrainY = monsterTerrainY(MONSTER_MAP, x, z);
 
   const vm = spawn.variant ? VARIANT_MODIFIERS[spawn.variant] : null;
   const hpMult = vm ? vm.hp : 1;
@@ -67,45 +177,90 @@ export function spawnMonster(spawn: MonsterSpawn, index: number): ServerMonster 
   return monster;
 }
 
-export function initMonsters(): void {
-  const biomeConfig = {
-    ...DEFAULT_BIOME_CONFIG,
-    width: townTerrainMeta.width,
-    height: townTerrainMeta.height,
-    resolution: townTerrainMeta.resolution,
-  };
-  const serverBiomeMap = generateBiomeMap(worldSeed.base, biomeConfig);
+function activateRegion(rx: number, rz: number): void {
+  const key = `${rx},${rz}`;
+  if (activeRegions.has(key)) return;
+  activeRegions.add(key);
 
-  MONSTER_SPAWNS = generateMonsterSpawns(
-    serverBiomeMap,
-    townHeightmap,
-    worldSeed.base,
-    {
-      ...DEFAULT_MONSTER_CONFIG,
-      mapWidth: townTerrainMeta.width,
-      mapHeight: townTerrainMeta.height,
-      heightmapResolution: townTerrainMeta.resolution,
-    },
-  );
-
-  console.log(`[WorldGen] Generated ${MONSTER_SPAWNS.length} monster spawn points`);
-
-  for (const spawn of MONSTER_SPAWNS) {
+  const spawns = getOrGenerateRegion(rx, rz);
+  for (const spawn of spawns) {
+    const existing = Object.values(monsters).some(m => m.spawnId === spawn.id);
+    if (existing) continue;
     for (let i = 0; i < spawn.count; i++) {
       spawnMonster(spawn, i);
     }
   }
-  console.log(`[WorldGen] Spawned ${Object.keys(monsters).length} monsters total`);
 }
+
+export function initMonsters(): void {
+  biomeSampler = createBiomeSampler(worldSeed.base);
+
+  // Activate a few regions near spawn
+  for (let rz = -1; rz <= 1; rz++) {
+    for (let rx = -1; rx <= 1; rx++) {
+      activateRegion(rx, rz);
+    }
+  }
+
+  console.log(`[WorldGen] Initial monster regions activated. ${Object.keys(monsters).length} monsters spawned.`);
+}
+
+function updateActiveRegions(): void {
+  const townPlayers = getPlayersOnMap(MONSTER_MAP);
+  if (townPlayers.length === 0) return;
+
+  const neededRegions = new Set<string>();
+
+  for (const p of townPlayers) {
+    const prx = Math.floor(p.x / REGION_SIZE);
+    const prz = Math.floor(p.z / REGION_SIZE);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        neededRegions.add(`${prx + dx},${prz + dz}`);
+      }
+    }
+  }
+
+  neededRegions.forEach(key => {
+    if (!activeRegions.has(key)) {
+      const [rx, rz] = key.split(',').map(Number);
+      activateRegion(rx, rz);
+    }
+  });
+
+  activeRegions.forEach(key => {
+    if (!neededRegions.has(key)) {
+      activeRegions.delete(key);
+    }
+  });
+}
+
+let regionUpdateTimer = 0;
 
 export function updateMonsters(io: Server): void {
   const now = Date.now();
   const changedMaps = new Set<string>();
 
+  regionUpdateTimer++;
+  if (regionUpdateTimer >= 60) {
+    regionUpdateTimer = 0;
+    updateActiveRegions();
+  }
+
   for (const monster of Object.values(monsters)) {
+    const isDungeonMonster = monster.mapId.startsWith('dungeon_');
+
+    if (!isDungeonMonster) {
+      const mrx = Math.floor(monster.x / REGION_SIZE);
+      const mrz = Math.floor(monster.z / REGION_SIZE);
+      if (!activeRegions.has(`${mrx},${mrz}`)) continue;
+    } else if (!activeDungeons.has(monster.mapId)) {
+      continue;
+    }
+
     if (monster.state === "dead") {
       if (now - monster.deathTime > monster.respawnTime) {
-        const spawn = MONSTER_SPAWNS.find(s => s.id === monster.spawnId);
+        const spawn = getSpawnById(monster.spawnId);
         if (spawn) {
           const base = MONSTER_BASE_STATS[spawn.type];
           const levelMult = 1 + (spawn.level - 1) * 0.3;
@@ -114,7 +269,7 @@ export function updateMonsters(io: Server): void {
           const dist = Math.random() * spawn.radius;
           monster.x = spawn.x + Math.cos(angle) * dist;
           monster.z = spawn.z + Math.sin(angle) * dist;
-          monster.y = monster.mapId === MONSTER_MAP ? getMonsterTerrainY(monster.x, monster.z) : 0;
+          monster.y = monsterTerrainY(monster.mapId, monster.x, monster.z);
           monster.hp = Math.floor(base.hp * levelMult * (vm ? vm.hp : 1));
           monster.maxHp = Math.floor(base.hp * levelMult * (vm ? vm.hp : 1));
           monster.state = "idle";
@@ -163,9 +318,7 @@ export function updateMonsters(io: Server): void {
         if (dist > 0.1) {
           monster.x += (dx / dist) * base.moveSpeed;
           monster.z += (dz / dist) * base.moveSpeed;
-          if (monster.mapId === MONSTER_MAP) {
-            monster.y = getMonsterTerrainY(monster.x, monster.z);
-          }
+          monster.y = monsterTerrainY(monster.mapId, monster.x, monster.z);
           changedMaps.add(monster.mapId);
         }
         if (dist <= base.attackRange) {
@@ -276,9 +429,7 @@ export function updateMonsters(io: Server): void {
         } else {
           monster.x += (dx / d) * base.moveSpeed * 0.5;
           monster.z += (dz / d) * base.moveSpeed * 0.5;
-          if (monster.mapId === MONSTER_MAP) {
-            monster.y = getMonsterTerrainY(monster.x, monster.z);
-          }
+          monster.y = monsterTerrainY(monster.mapId, monster.x, monster.z);
           monster.state = "wandering";
         }
         changedMaps.add(monster.mapId);
@@ -296,9 +447,7 @@ export function updateMonsters(io: Server): void {
       } else {
         monster.x += (dx / d) * base.moveSpeed * 0.5;
         monster.z += (dz / d) * base.moveSpeed * 0.5;
-        if (monster.mapId === MONSTER_MAP) {
-          monster.y = getMonsterTerrainY(monster.x, monster.z);
-        }
+        monster.y = monsterTerrainY(monster.mapId, monster.x, monster.z);
       }
       changedMaps.add(monster.mapId);
     }
@@ -307,4 +456,45 @@ export function updateMonsters(io: Server): void {
   changedMaps.forEach(mapId => {
     io.to(mapRoom(mapId)).emit("monstersUpdate", getMonstersOnMap(mapId));
   });
+}
+
+function getSpawnById(spawnId: string): MonsterSpawn | undefined {
+  let found: MonsterSpawn | undefined;
+  regionSpawns.forEach(spawns => {
+    if (found) return;
+    for (const spawn of spawns) {
+      if (spawn.id === spawnId) { found = spawn; return; }
+    }
+  });
+  if (found) return found;
+  dungeonSpawns.forEach(spawns => {
+    if (found) return;
+    for (const spawn of spawns) {
+      if (spawn.id === spawnId) { found = spawn; return; }
+    }
+  });
+  return found;
+}
+
+const dungeonSpawns = new Map<string, MonsterSpawn[]>();
+const activeDungeons = new Set<string>();
+
+export function spawnDungeonMonsters(mapId: string, caveSeed: number, tier: PortalTier): void {
+  if (activeDungeons.has(mapId)) return;
+  activeDungeons.add(mapId);
+
+  const dungeonMap = generateDungeon(caveSeed, tier);
+  const spawns = dungeonMap.monsterSpawns || [];
+  dungeonSpawns.set(mapId, spawns);
+
+  let total = 0;
+  for (const spawn of spawns) {
+    for (let i = 0; i < spawn.count; i++) {
+      const m = spawnMonster(spawn, i);
+      m.mapId = mapId;
+      m.y = 0;
+      total++;
+    }
+  }
+  console.log(`[Dungeon] Spawned ${total} monsters for ${mapId}, tier=${tier}, spawns=${spawns.length}`);
 }

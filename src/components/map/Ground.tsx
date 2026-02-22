@@ -1,17 +1,187 @@
 'use client';
 
-import { memo, useMemo, useState, useRef } from 'react';
+import { memo, useMemo, useState, useRef, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box, Sphere, Cylinder, Sparkles } from '@react-three/drei';
 import { seededRandom } from '@/utils/seededRandom';
 import { Mountains } from './environment/Mountains';
 import { CastleFloor } from './environment/CastleFloor';
 import { BIOME_CONFIGS } from '@/lib/worldgen/biome-configs';
-import type { BiomeType } from '@/types/game';
+import type { BiomeType, GameMap } from '@/types/game';
+import { createTerrainSampler, type HeightSampler } from '@/lib/worldgen/terrain';
+import { createBiomeSampler, type BiomeSampler } from '@/lib/worldgen/biomes';
+import { hashCoord } from '@/lib/worldgen/seed';
+import { TOWN_SEED } from '@/data/maps/town';
 import { useGameStore } from '@/stores/gameStore';
 import * as THREE from 'three';
 
-interface TerrainGroundProps {
+const _tempColor = new THREE.Color();
+const _tempColor2 = new THREE.Color();
+
+function getTerrainColor(h: number, biome?: BiomeType): THREE.Color {
+  const colors = biome ? BIOME_CONFIGS[biome].groundColors : ['#3A6A2A', '#5A8A3A', '#7A9A4A', '#8A7A5A', '#6A6A6A'];
+  const t = Math.max(0, Math.min(1, (h + 1.5) / 13.5));
+  const idx = t * (colors.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.min(lo + 1, colors.length - 1);
+  const frac = idx - lo;
+  _tempColor.set(colors[lo]);
+  _tempColor2.set(colors[hi]);
+  _tempColor.lerp(_tempColor2, frac);
+  return _tempColor;
+}
+
+const PATCH_SIZE = 300;
+const PATCH_RES = 128;
+const REBUILD_THRESHOLD = 30;
+const VEG_CHUNK = 30;
+const VEG_VIEW_DIST = 60;
+const VEG_VIEW_DIST_SQ = VEG_VIEW_DIST * VEG_VIEW_DIST;
+
+interface InfiniteTerrainProps {
+  heightSampler: HeightSampler;
+  biomeSampler: BiomeSampler;
+}
+
+function buildPatchGeometry(
+  centerX: number,
+  centerZ: number,
+  heightSampler: HeightSampler,
+  biomeSampler: BiomeSampler,
+): THREE.BufferGeometry {
+  const geo = new THREE.PlaneGeometry(PATCH_SIZE, PATCH_SIZE, PATCH_RES, PATCH_RES);
+  geo.rotateX(-Math.PI / 2);
+
+  const positions = geo.attributes.position;
+  const colors = new Float32Array(positions.count * 3);
+  const res = PATCH_RES + 1;
+
+  for (let i = 0; i < positions.count; i++) {
+    const lx = positions.getX(i);
+    const lz = positions.getZ(i);
+    const worldX = lx + centerX;
+    const worldZ = lz + centerZ;
+
+    const h = heightSampler(worldX, worldZ);
+    positions.setY(i, h);
+
+    const biome = biomeSampler(worldX, worldZ);
+    const color = getTerrainColor(h, biome);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+interface VegItem {
+  x: number;
+  z: number;
+  scale: number;
+  type: 'flower' | 'grass';
+  color: string;
+  flowerColor: string;
+}
+
+interface PebItem {
+  x: number;
+  z: number;
+  s: number;
+}
+
+function generateChunkVegetation(cx: number, cz: number, biomeSampler: BiomeSampler): VegItem[] {
+  const items: VegItem[] = [];
+  const seed = hashCoord(cx, cz, 7777);
+  const baseX = cx * VEG_CHUNK;
+  const baseZ = cz * VEG_CHUNK;
+  const biome = biomeSampler(baseX + VEG_CHUNK / 2, baseZ + VEG_CHUNK / 2);
+  const bc = BIOME_CONFIGS[biome];
+  const count = Math.floor(8 * bc.vegetationDensity);
+
+  for (let i = 0; i < count; i++) {
+    const h = hashCoord(i, seed, 111);
+    const r1 = (h & 0xffff) / 0xffff;
+    const r2 = ((h >> 8) & 0xffff) / 0xffff;
+    const r3 = ((h >> 4) & 0xff) / 0xff;
+    const r4 = ((h >> 12) & 0xff) / 0xff;
+    const r5 = ((h >> 16) & 0xff) / 0xff;
+
+    items.push({
+      x: baseX + r1 * VEG_CHUNK,
+      z: baseZ + r2 * VEG_CHUNK,
+      scale: 0.15 + r3 * 0.25,
+      type: r4 > 0.6 ? 'flower' : 'grass',
+      color: bc.vegetationColors[Math.floor(r5 * bc.vegetationColors.length)] ?? bc.vegetationColors[0],
+      flowerColor: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#FF8DC7'][Math.floor(r3 * 5)],
+    });
+  }
+  return items;
+}
+
+function generateChunkPebbles(cx: number, cz: number): PebItem[] {
+  const items: PebItem[] = [];
+  const seed = hashCoord(cx, cz, 8888);
+  const baseX = cx * VEG_CHUNK;
+  const baseZ = cz * VEG_CHUNK;
+
+  for (let i = 0; i < 3; i++) {
+    const h = hashCoord(i, seed, 222);
+    const r1 = (h & 0xffff) / 0xffff;
+    const r2 = ((h >> 8) & 0xffff) / 0xffff;
+    const r3 = ((h >> 4) & 0xff) / 0xff;
+    items.push({
+      x: baseX + r1 * VEG_CHUNK,
+      z: baseZ + r2 * VEG_CHUNK,
+      s: 0.04 + r3 * 0.08,
+    });
+  }
+  return items;
+}
+
+const InfiniteTerrainMesh = memo(function InfiniteTerrainMesh({ heightSampler, biomeSampler }: InfiniteTerrainProps) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const patchCenter = useRef({ x: 0, z: 0 });
+  const geoRef = useRef<THREE.BufferGeometry | null>(null);
+  const initializedRef = useRef(false);
+
+  if (!geoRef.current) {
+    geoRef.current = buildPatchGeometry(0, 0, heightSampler, biomeSampler);
+  }
+
+  useFrame(() => {
+    const pos = useGameStore.getState().localPlayerPos;
+    if (!pos || !meshRef.current) return;
+
+    const dx = pos.x - patchCenter.current.x;
+    const dz = pos.z - patchCenter.current.z;
+    const distSq = dx * dx + dz * dz;
+
+    const needsRebuild = !initializedRef.current || distSq > REBUILD_THRESHOLD * REBUILD_THRESHOLD;
+    if (!needsRebuild) return;
+
+    initializedRef.current = true;
+    const newCX = Math.round(pos.x / 10) * 10;
+    const newCZ = Math.round(pos.z / 10) * 10;
+    patchCenter.current = { x: newCX, z: newCZ };
+
+    const oldGeo = geoRef.current;
+    geoRef.current = buildPatchGeometry(newCX, newCZ, heightSampler, biomeSampler);
+    meshRef.current.geometry = geoRef.current;
+    meshRef.current.position.set(newCX, 0, newCZ);
+    oldGeo?.dispose();
+  });
+
+  return (
+    <mesh ref={meshRef} geometry={geoRef.current!} receiveShadow>
+      <meshStandardMaterial vertexColors roughness={0.92} metalness={0.02} />
+    </mesh>
+  );
+});
+
+interface FiniteTerrainProps {
   width: number;
   height: number;
   heightmap: Float32Array;
@@ -19,27 +189,7 @@ interface TerrainGroundProps {
   biomeMap?: BiomeType[];
 }
 
-const _tempColor = new THREE.Color();
-const _tempColor2 = new THREE.Color();
-
-function getTerrainColor(h: number, biome?: BiomeType): THREE.Color {
-  const colors = biome ? BIOME_CONFIGS[biome].groundColors : ['#3A6A2A', '#5A8A3A', '#7A9A4A', '#8A7A5A', '#6A6A6A'];
-
-  const t = Math.max(0, Math.min(1, (h + 1.5) / 13.5));
-
-  const idx = t * (colors.length - 1);
-  const lo = Math.floor(idx);
-  const hi = Math.min(lo + 1, colors.length - 1);
-  const frac = idx - lo;
-
-  _tempColor.set(colors[lo]);
-  _tempColor2.set(colors[hi]);
-  _tempColor.lerp(_tempColor2, frac);
-
-  return _tempColor;
-}
-
-const TerrainGround = memo(function TerrainGround({ width, height, heightmap, resolution, biomeMap }: TerrainGroundProps) {
+const FiniteTerrainGround = memo(function FiniteTerrainGround({ width, height, heightmap, resolution, biomeMap }: FiniteTerrainProps) {
   const geometry = useMemo(() => {
     const geo = new THREE.PlaneGeometry(width, height, resolution, resolution);
     geo.rotateX(-Math.PI / 2);
@@ -52,7 +202,6 @@ const TerrainGround = memo(function TerrainGround({ width, height, heightmap, re
       const ix = i % res;
       const iz = Math.floor(i / res);
       const h = heightmap[iz * res + ix];
-
       positions.setY(i, h);
 
       const biome = biomeMap ? biomeMap[iz * res + ix] : undefined;
@@ -74,52 +223,35 @@ const TerrainGround = memo(function TerrainGround({ width, height, heightmap, re
   );
 });
 
-export const Ground = memo(function Ground({ mapId, width, height, heightmap, resolution, biomeMap }: {
-  mapId: string;
-  width: number;
-  height: number;
-  heightmap?: Float32Array;
-  resolution?: number;
-  biomeMap?: BiomeType[];
-}) {
-  const isCave = mapId === 'cave';
+export const Ground = memo(function Ground({ currentMap }: { currentMap: GameMap }) {
+  const { id: mapId, width, height, heightmap, heightmapResolution: resolution, biomeMap } = currentMap;
+
+  const isCave = mapId === 'cave' || mapId.startsWith('dungeon_');
   const isCastle = mapId === 'castle';
   const isTown = mapId === 'town';
-  const hasHeightmap = heightmap && resolution;
 
-  const allVegetation = useMemo(() => {
-    if (isCastle) return [];
-    const items = [];
-    const count = isCave ? 25 : 200;
-    for (let i = 0; i < count; i++) {
-      items.push({
-        x: (seededRandom(i * 7 + 1) - 0.5) * width * 0.85,
-        z: (seededRandom(i * 7 + 2) - 0.5) * height * 0.85,
-        scale: 0.15 + seededRandom(i * 7 + 3) * 0.25,
-        type: seededRandom(i * 7 + 4) > 0.6 ? 'flower' : 'grass',
-        color: isCave
-          ? ['#2D4A3A', '#1E3A2A', '#3A5A4A'][Math.floor(seededRandom(i * 7 + 5) * 3)]
-          : ['#4CAF50', '#66BB6A', '#43A047', '#388E3C'][Math.floor(seededRandom(i * 7 + 5) * 4)],
-        flowerColor: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#FF8DC7'][Math.floor(seededRandom(i * 7 + 6) * 5)],
-      });
-    }
-    return items;
-  }, [mapId, width, height, isCave, isCastle]);
+  const fallbackSamplers = useMemo(() => {
+    if (currentMap.terrainSampler && currentMap.biomeSampler) return null;
+    if (!isTown) return null;
+    return {
+      terrain: createTerrainSampler(TOWN_SEED),
+      biome: createBiomeSampler(TOWN_SEED),
+    };
+  }, [currentMap.terrainSampler, currentMap.biomeSampler, isTown]);
 
-  const allPebbles = useMemo(() => {
-    if (isCastle) return [];
-    return Array.from({ length: isTown ? 100 : 30 }, (_, i) => ({
-      x: (seededRandom(i * 11 + 200) - 0.5) * width * 0.8,
-      z: (seededRandom(i * 11 + 201) - 0.5) * height * 0.8,
-      s: 0.04 + seededRandom(i * 11 + 202) * 0.08,
-    }));
-  }, [mapId, width, height, isCastle, isTown]);
+  const terrainSampler = currentMap.terrainSampler ?? fallbackSamplers?.terrain;
+  const biomeSampler = currentMap.biomeSampler ?? fallbackSamplers?.biome;
+  const infinite = currentMap.infinite ?? isTown;
 
-  const VEG_VIEW_DIST_SQ = 60 * 60;
-  const [vegetation, setVegetation] = useState(allVegetation.slice(0, 40));
-  const [pebbles, setPebbles] = useState(allPebbles.slice(0, 20));
+  const isInfinite = !!infinite && !!terrainSampler && !!biomeSampler;
+  const hasFiniteHeightmap = !isInfinite && heightmap && resolution;
+
+  const [vegetation, setVegetation] = useState<VegItem[]>([]);
+  const [pebbles, setPebbles] = useState<PebItem[]>([]);
   const vegTimerRef = useRef(0);
   const lastVegChunkRef = useRef('');
+  const vegCacheRef = useRef<Map<string, VegItem[]>>(new Map());
+  const pebCacheRef = useRef<Map<string, PebItem[]>>(new Map());
 
   useFrame((_, delta) => {
     if (isCastle || isCave) return;
@@ -131,29 +263,61 @@ export const Ground = memo(function Ground({ mapId, width, height, heightmap, re
     if (!pos) return;
     const px = pos.x;
     const pz = pos.z;
-    const chunkKey = `${Math.floor(px / 30)},${Math.floor(pz / 30)}`;
+    const chunkKey = `${Math.floor(px / VEG_CHUNK)},${Math.floor(pz / VEG_CHUNK)}`;
     if (chunkKey === lastVegChunkRef.current) return;
     lastVegChunkRef.current = chunkKey;
 
-    setVegetation(allVegetation.filter(v => {
-      const dx = v.x - px;
-      const dz = v.z - pz;
-      return dx * dx + dz * dz < VEG_VIEW_DIST_SQ;
-    }));
-    setPebbles(allPebbles.filter(p => {
-      const dx = p.x - px;
-      const dz = p.z - pz;
-      return dx * dx + dz * dz < VEG_VIEW_DIST_SQ;
-    }));
+    if (isInfinite) {
+      const pcx = Math.floor(px / VEG_CHUNK);
+      const pcz = Math.floor(pz / VEG_CHUNK);
+      const radius = 2;
+      const allVeg: VegItem[] = [];
+      const allPeb: PebItem[] = [];
+
+      for (let dz = -radius; dz <= radius; dz++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const cx = pcx + dx;
+          const cz = pcz + dz;
+          const key = `${cx},${cz}`;
+
+          if (!vegCacheRef.current.has(key)) {
+            vegCacheRef.current.set(key, generateChunkVegetation(cx, cz, biomeSampler!));
+            pebCacheRef.current.set(key, generateChunkPebbles(cx, cz));
+          }
+
+          const chunkVeg = vegCacheRef.current.get(key)!;
+          const chunkPeb = pebCacheRef.current.get(key)!;
+
+          for (const v of chunkVeg) {
+            const ddx = v.x - px;
+            const ddz = v.z - pz;
+            if (ddx * ddx + ddz * ddz < VEG_VIEW_DIST_SQ) allVeg.push(v);
+          }
+          for (const p of chunkPeb) {
+            const ddx = p.x - px;
+            const ddz = p.z - pz;
+            if (ddx * ddx + ddz * ddz < VEG_VIEW_DIST_SQ) allPeb.push(p);
+          }
+        }
+      }
+
+      // Prune distant chunks from cache
+      Array.from(vegCacheRef.current.keys()).forEach(key => {
+        const [kcx, kcz] = key.split(',').map(Number);
+        if (Math.abs(kcx - pcx) > 5 || Math.abs(kcz - pcz) > 5) {
+          vegCacheRef.current.delete(key);
+          pebCacheRef.current.delete(key);
+        }
+      });
+
+      setVegetation(allVeg);
+      setPebbles(allPeb);
+    }
   });
 
-  if (isCastle) {
-    return <CastleFloor width={width} height={height} />;
-  }
-
-  // Vegetation Y offset helper — sample heightmap if available
-  const getVegY = (x: number, z: number): number => {
-    if (!hasHeightmap) return 0;
+  const getVegY = useCallback((x: number, z: number): number => {
+    if (isInfinite) return terrainSampler!(x, z);
+    if (!hasFiniteHeightmap) return 0;
     const halfW = width / 2;
     const halfH = height / 2;
     const nx = (x + halfW) / width;
@@ -163,42 +327,25 @@ export const Ground = memo(function Ground({ mapId, width, height, heightmap, re
     const res = resolution! + 1;
     const ci = Math.max(0, Math.min(resolution!, iz)) * res + Math.max(0, Math.min(resolution!, ix));
     return heightmap![ci] ?? 0;
-  };
+  }, [isInfinite, terrainSampler, hasFiniteHeightmap, width, height, resolution, heightmap]);
+
+  if (isCastle) {
+    return <CastleFloor width={width} height={height} />;
+  }
 
   return (
     <>
-      {hasHeightmap ? (
-        <TerrainGround width={width} height={height} heightmap={heightmap!} resolution={resolution!} biomeMap={biomeMap} />
+      {isInfinite ? (
+        <InfiniteTerrainMesh heightSampler={terrainSampler!} biomeSampler={biomeSampler!} />
+      ) : hasFiniteHeightmap ? (
+        <FiniteTerrainGround width={width} height={height} heightmap={heightmap!} resolution={resolution!} biomeMap={biomeMap} />
       ) : (
         <Box position={[0, -0.5, 0]} args={[width, 1, height]} receiveShadow>
           <meshStandardMaterial color={isCave ? '#2A2A2A' : '#5A8A3A'} roughness={0.95} metalness={0.02} />
         </Box>
       )}
 
-      {isTown && !hasHeightmap && (
-        <>
-          {Array.from({ length: 12 }, (_, i) => {
-            const cx = (seededRandom(i * 23 + 300) - 0.5) * width * 0.7;
-            const cz = (seededRandom(i * 23 + 301) - 0.5) * height * 0.7;
-            const r = 4 + seededRandom(i * 23 + 302) * 8;
-            const colors = ['#4E7A2E', '#6B9A4A', '#4A7028', '#5A8A3A', '#3D6B22'];
-            return (
-              <mesh key={`patch-${i}`} position={[cx, 0.01, cz]} rotation={[-Math.PI / 2, 0, seededRandom(i * 23 + 303) * Math.PI]}>
-                <circleGeometry args={[r, 16]} />
-                <meshStandardMaterial color={colors[i % colors.length]} roughness={1} transparent opacity={0.4} />
-              </mesh>
-            );
-          })}
-          <Box position={[0, 0.015, 0]} args={[2.5, 0.02, 60]}>
-            <meshStandardMaterial color="#8B7355" roughness={1} />
-          </Box>
-          <Box position={[0, 0.015, 0]} args={[60, 0.02, 2.5]} rotation={[0, 0, 0]}>
-            <meshStandardMaterial color="#8B7355" roughness={1} />
-          </Box>
-        </>
-      )}
-
-      {isCave && (
+      {mapId === 'cave' && (
         <group position={[-5, 0.01, -5]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <circleGeometry args={[6, 24]} />
@@ -218,13 +365,7 @@ export const Ground = memo(function Ground({ mapId, width, height, heightmap, re
 
       {isTown && (
         <>
-          <Mountains
-            heightmap={heightmap}
-            mapWidth={width}
-            mapHeight={height}
-            resolution={resolution}
-          />
-          {/* Pond */}
+          <Mountains currentMap={currentMap} />
           <group position={[15, getVegY(15, -12) + 0.02, -12]}>
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
               <circleGeometry args={[5, 24]} />

@@ -29,15 +29,68 @@ export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
   maxHeight: 12.0,
 };
 
+export interface InfiniteTerrainConfig {
+  octaves: number;
+  persistence: number;
+  lacunarity: number;
+  amplitude: number;
+  scale: number;
+  safeRadius: number;
+}
+
+export const DEFAULT_INFINITE_TERRAIN: InfiniteTerrainConfig = {
+  octaves: 5,
+  persistence: 0.48,
+  lacunarity: 2.0,
+  amplitude: 8.0,
+  scale: 0.01,
+  safeRadius: 35,
+};
+
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }
 
+export type HeightSampler = (x: number, z: number) => number;
+
 /**
- * Generates a heightmap using multi-octave simplex noise.
- * Returns a Float32Array of size (resolution+1)^2 representing heights.
- * Layout: row-major, index = z * (resolution+1) + x
+ * Creates a terrain height sampler that works at any world coordinate.
+ * Returns a closure (x, z) => height using multi-octave simplex noise.
+ */
+export function createTerrainSampler(
+  seed: number,
+  config: InfiniteTerrainConfig = DEFAULT_INFINITE_TERRAIN,
+): HeightSampler {
+  const rng = createSeededRNG(seed);
+  const noise2D = createNoise2D(rng);
+  const { octaves, persistence, lacunarity, amplitude, scale, safeRadius } = config;
+  const rampEnd = safeRadius * 1.5;
+
+  return (worldX: number, worldZ: number): number => {
+    let h = 0;
+    let amp = amplitude;
+    let freq = scale;
+
+    for (let o = 0; o < octaves; o++) {
+      h += noise2D(worldX * freq, worldZ * freq) * amp;
+      amp *= persistence;
+      freq *= lacunarity;
+    }
+
+    const centerDist = Math.sqrt(worldX * worldX + worldZ * worldZ);
+    if (centerDist < safeRadius) {
+      h = 0;
+    } else if (centerDist < rampEnd) {
+      h *= smoothstep(safeRadius, rampEnd, centerDist);
+    }
+
+    return h;
+  };
+}
+
+/**
+ * Generates a finite heightmap for bounded maps (cave, castle).
  */
 export function generateHeightmap(seed: number, config: TerrainConfig = DEFAULT_TERRAIN_CONFIG): Float32Array {
   const rng = createSeededRNG(seed);
@@ -64,7 +117,6 @@ export function generateHeightmap(seed: number, config: TerrainConfig = DEFAULT_
         freq *= config.lacunarity;
       }
 
-      // Flatten center safe zone, then let terrain rise naturally
       const centerDist = Math.sqrt(worldX * worldX + worldZ * worldZ);
       const rampEnd = config.safeRadius * 1.5;
 
@@ -74,7 +126,6 @@ export function generateHeightmap(seed: number, config: TerrainConfig = DEFAULT_
         h *= smoothstep(config.safeRadius, rampEnd, centerDist);
       }
 
-      // Amplify edges for natural mountain walls (only very close to boundary)
       const edgeDist = Math.min(
         halfW - Math.abs(worldX),
         halfH - Math.abs(worldZ),
@@ -94,7 +145,7 @@ export function generateHeightmap(seed: number, config: TerrainConfig = DEFAULT_
 }
 
 /**
- * Samples the heightmap at arbitrary world coordinates using bilinear interpolation.
+ * Samples a finite heightmap at world coordinates using bilinear interpolation.
  */
 export function getHeightAt(
   worldX: number,

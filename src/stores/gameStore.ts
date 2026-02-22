@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { WorldSeed } from "@/lib/worldgen/seed";
-import type { BiomeType } from "@/types/game";
+import type { BiomeType, MapObject } from "@/types/game";
 
 export interface Position3D {
   x: number;
@@ -43,6 +43,7 @@ interface GameState {
   checkCollision: ((x: number, y: number, z: number) => boolean) | null;
   worldSeed: WorldSeed | null;
   playerBiome: BiomeType;
+  nearbyPortals: MapObject[];
 }
 
 interface GameActions {
@@ -60,6 +61,7 @@ interface GameActions {
   setCheckCollision: (fn: (x: number, y: number, z: number) => boolean) => void;
   setWorldSeed: (seed: WorldSeed) => void;
   setPlayerBiome: (biome: BiomeType) => void;
+  setNearbyPortals: (portals: MapObject[]) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -77,6 +79,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   checkCollision: null,
   worldSeed: null,
   playerBiome: 'plains' as BiomeType,
+  nearbyPortals: [],
 
   setLocalPlayerPos: (pos) => set({ localPlayerPos: pos }),
   setMoveDirection: (dir) => set({ moveDirection: dir }),
@@ -114,4 +117,5 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setCheckCollision: (fn) => set({ checkCollision: fn }),
   setWorldSeed: (seed) => set({ worldSeed: seed }),
   setPlayerBiome: (biome) => set((s) => s.playerBiome !== biome ? { playerBiome: biome } : s),
+  setNearbyPortals: (portals) => set({ nearbyPortals: portals }),
 }));

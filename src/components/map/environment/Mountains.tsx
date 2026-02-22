@@ -1,55 +1,168 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useState, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Cone, Sphere } from '@react-three/drei';
-import { seededRandom } from '@/utils/seededRandom';
-import { getHeightAt } from '@/lib/worldgen/terrain';
+import { hashCoord, createSeededRNG } from '@/lib/worldgen/seed';
+import { createTerrainSampler } from '@/lib/worldgen/terrain';
+import { TOWN_SEED } from '@/data/maps/town';
+import type { GameMap } from '@/types/game';
+import { useGameStore } from '@/stores/gameStore';
 
-interface MountainsProps {
-  heightmap?: Float32Array;
-  mapWidth?: number;
-  mapHeight?: number;
-  resolution?: number;
+interface MountainData {
+  x: number;
+  z: number;
+  baseY: number;
+  h: number;
+  r: number;
+  snow: boolean;
+  color: string;
+  hasTree: boolean;
 }
 
-export const Mountains = memo(function Mountains({
-  heightmap,
-  mapWidth = 150,
-  mapHeight = 150,
-  resolution,
-}: MountainsProps) {
-  const mountains = useMemo(() => {
-    const data = [];
-    const halfW = mapWidth / 2;
-    const halfH = mapHeight / 2;
-    const ringDist = Math.min(halfW, halfH) * 0.9;
-    const count = 40;
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2 + seededRandom(i * 13 + 500) * 0.2;
-      const dist = ringDist + seededRandom(i * 17 + 600) * 20;
-      const h = 20 + seededRandom(i * 11 + 700) * 35;
-      const r = 14 + seededRandom(i * 19 + 800) * 18;
-      const colorIdx = Math.floor(seededRandom(i * 23 + 900) * 4);
-      const colors = ['#4A5A4A', '#5A6A5A', '#3A4A3A', '#6A7A6A'];
+const REGION_SIZE = 80;
+const MOUNTAIN_MAX_DIST = 300;
+const MOUNTAIN_MAX_DIST_SQ = MOUNTAIN_MAX_DIST * MOUNTAIN_MAX_DIST;
+const COLORS = ['#4A5A4A', '#5A6A5A', '#3A4A3A', '#6A7A6A'];
 
-      const x = Math.cos(angle) * dist;
-      const z = Math.sin(angle) * dist;
+function generateRegionMountains(
+  regionX: number,
+  regionZ: number,
+  seed: number,
+  heightSampler?: (x: number, z: number) => number,
+): MountainData[] {
+  const regionSeed = hashCoord(regionX, regionZ, seed + 9999);
+  const rng = createSeededRNG(regionSeed);
+  const mountains: MountainData[] = [];
 
-      let baseY = 0;
-      if (heightmap && resolution) {
-        baseY = getHeightAt(x, z, heightmap, mapWidth, mapHeight, resolution);
+  const baseX = regionX * REGION_SIZE;
+  const baseZ = regionZ * REGION_SIZE;
+
+  const centerDist = Math.sqrt(
+    (baseX + REGION_SIZE / 2) ** 2 + (baseZ + REGION_SIZE / 2) ** 2,
+  );
+  if (centerDist < 60) return mountains;
+
+  const count = 1 + Math.floor(rng() * 2);
+  for (let i = 0; i < count; i++) {
+    const x = baseX + rng() * REGION_SIZE;
+    const z = baseZ + rng() * REGION_SIZE;
+    const h = 20 + rng() * 35;
+    const r = 14 + rng() * 18;
+    const colorIdx = Math.floor(rng() * COLORS.length);
+    const baseY = heightSampler ? heightSampler(x, z) : 0;
+
+    mountains.push({
+      x, z, baseY,
+      h, r,
+      snow: h > 30,
+      color: COLORS[colorIdx],
+      hasTree: h < 30 && rng() > 0.5,
+    });
+  }
+
+  return mountains;
+}
+
+interface MountainsProps {
+  currentMap: GameMap;
+}
+
+export const Mountains = memo(function Mountains({ currentMap }: MountainsProps) {
+  const isTown = currentMap.id === 'town';
+  const isInfinite = !!(currentMap.infinite ?? isTown);
+  const heightSampler = currentMap.terrainSampler ?? (isTown ? createTerrainSampler(TOWN_SEED) : undefined);
+
+  const [mountains, setMountains] = useState<MountainData[]>([]);
+  const lastRegionRef = useRef('');
+  const regionCacheRef = useRef<Map<string, MountainData[]>>(new Map());
+  const timerRef = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!isInfinite) return;
+    timerRef.current += delta;
+    if (timerRef.current < 0.5) return;
+    timerRef.current = 0;
+
+    const pos = useGameStore.getState().localPlayerPos;
+    if (!pos) return;
+
+    const prx = Math.floor(pos.x / REGION_SIZE);
+    const prz = Math.floor(pos.z / REGION_SIZE);
+    const regionKey = `${prx},${prz}`;
+    if (regionKey === lastRegionRef.current) return;
+    lastRegionRef.current = regionKey;
+
+    const visible: MountainData[] = [];
+    const scanRadius = 3;
+    const seed = TOWN_SEED;
+
+    for (let dz = -scanRadius; dz <= scanRadius; dz++) {
+      for (let dx = -scanRadius; dx <= scanRadius; dx++) {
+        const rx = prx + dx;
+        const rz = prz + dz;
+        const key = `${rx},${rz}`;
+
+        if (!regionCacheRef.current.has(key)) {
+          regionCacheRef.current.set(key, generateRegionMountains(rx, rz, seed, heightSampler));
+        }
+
+        const regionMts = regionCacheRef.current.get(key)!;
+        for (const mt of regionMts) {
+          const ddx = mt.x - pos.x;
+          const ddz = mt.z - pos.z;
+          const distSq = ddx * ddx + ddz * ddz;
+          if (distSq <= MOUNTAIN_MAX_DIST_SQ) {
+            visible.push(mt);
+          }
+        }
       }
-
-      data.push({
-        x, z, baseY,
-        h, r,
-        snow: h > 20,
-        color: colors[colorIdx],
-        hasTree: h < 20 && seededRandom(i * 29 + 950) > 0.5,
-      });
     }
-    return data;
-  }, [heightmap, mapWidth, mapHeight, resolution]);
+
+    // Prune far regions
+    Array.from(regionCacheRef.current.keys()).forEach(key => {
+      const [rx, rz] = key.split(',').map(Number);
+      if (Math.abs(rx - prx) > 5 || Math.abs(rz - prz) > 5) {
+        regionCacheRef.current.delete(key);
+      }
+    });
+
+    setMountains(visible);
+  });
+
+  // Initial load for infinite
+  useFrame(() => {
+    if (!isInfinite || mountains.length > 0 || lastRegionRef.current !== '') return;
+
+    const pos = useGameStore.getState().localPlayerPos;
+    if (!pos) return;
+
+    const prx = Math.floor(pos.x / REGION_SIZE);
+    const prz = Math.floor(pos.z / REGION_SIZE);
+    lastRegionRef.current = `${prx},${prz}`;
+
+    const visible: MountainData[] = [];
+    const seed = TOWN_SEED;
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const rx = prx + dx;
+        const rz = prz + dz;
+        const key = `${rx},${rz}`;
+        const regionMts = generateRegionMountains(rx, rz, seed, heightSampler);
+        regionCacheRef.current.set(key, regionMts);
+
+        for (const mt of regionMts) {
+          const ddx = mt.x - pos.x;
+          const ddz = mt.z - pos.z;
+          const distSq = ddx * ddx + ddz * ddz;
+          if (distSq <= MOUNTAIN_MAX_DIST_SQ) {
+            visible.push(mt);
+          }
+        }
+      }
+    }
+    setMountains(visible);
+  });
 
   return (
     <group>

@@ -20,9 +20,76 @@ export const DEFAULT_BIOME_CONFIG: BiomeMapConfig = {
   ruinsNodeRadius: 15,
 };
 
+export interface InfiniteBiomeConfig {
+  biomeScale: number;
+  ruinsNodeCount: number;
+  ruinsNodeRadius: number;
+  /** Distance at which difficulty reaches 1.0 */
+  difficultyRadius: number;
+}
+
+export const DEFAULT_INFINITE_BIOME: InfiniteBiomeConfig = {
+  biomeScale: 0.005,
+  ruinsNodeCount: 12,
+  ruinsNodeRadius: 20,
+  difficultyRadius: 600,
+};
+
+export type BiomeSampler = (x: number, z: number) => BiomeType;
+
 /**
- * Generates a biome map using noise-based moisture/temperature with radial difficulty gradient.
- * Returns a BiomeType[] of size (resolution+1)^2, same layout as the heightmap.
+ * Creates a biome sampler that works at any world coordinate.
+ * Returns a closure (x, z) => BiomeType using noise.
+ */
+export function createBiomeSampler(
+  seed: number,
+  config: InfiniteBiomeConfig = DEFAULT_INFINITE_BIOME,
+): BiomeSampler {
+  const rng = createSeededRNG(seed + 5000);
+  const moistureNoise = createNoise2D(createSeededRNG(seed + 1000));
+  const temperatureNoise = createNoise2D(createSeededRNG(seed + 2000));
+  const elevationNoise = createNoise2D(createSeededRNG(seed + 3000));
+
+  const ruinsNodes: { x: number; z: number }[] = [];
+  for (let i = 0; i < config.ruinsNodeCount; i++) {
+    const angle = rng() * Math.PI * 2;
+    const dist = 80 + rng() * 400;
+    ruinsNodes.push({
+      x: Math.cos(angle) * dist,
+      z: Math.sin(angle) * dist,
+    });
+  }
+
+  const rr = config.ruinsNodeRadius * config.ruinsNodeRadius;
+  const safeZone = 50;
+
+  return (worldX: number, worldZ: number): BiomeType => {
+    const distFromCenter = Math.sqrt(worldX * worldX + worldZ * worldZ);
+
+    if (distFromCenter < safeZone) return 'plains';
+
+    const moisture = moistureNoise(worldX * config.biomeScale, worldZ * config.biomeScale);
+    const temperature = temperatureNoise(worldX * config.biomeScale * 0.7, worldZ * config.biomeScale * 0.7);
+    const elevation = elevationNoise(worldX * config.biomeScale * 0.5, worldZ * config.biomeScale * 0.5);
+
+    for (const node of ruinsNodes) {
+      const dx = worldX - node.x;
+      const dz = worldZ - node.z;
+      if (dx * dx + dz * dz < rr) {
+        return 'ruins';
+      }
+    }
+
+    if (elevation > 0.35) return 'rocky';
+    if (moisture > 0.2 && temperature > 0.1) return 'forest';
+    if (moisture > 0.15 && temperature < -0.1) return 'swamp';
+    if (elevation > 0.1 && moisture < -0.1) return 'rocky';
+    return 'plains';
+  };
+}
+
+/**
+ * Generates a finite biome map for bounded maps.
  */
 export function generateBiomeMap(
   seed: number,
@@ -39,7 +106,6 @@ export function generateBiomeMap(
   const halfH = config.height / 2;
   const mapRadius = Math.min(halfW, halfH);
 
-  // Pre-generate ruins node positions
   const ruinsNodes: { x: number; z: number }[] = [];
   for (let i = 0; i < config.ruinsNodeCount; i++) {
     const angle = rng() * Math.PI * 2;
@@ -63,7 +129,6 @@ export function generateBiomeMap(
 
       let biome: BiomeType;
 
-      // Check ruins nodes first
       let nearRuins = false;
       for (const node of ruinsNodes) {
         const dx = worldX - node.x;
@@ -96,7 +161,7 @@ export function generateBiomeMap(
 }
 
 /**
- * Samples the biome at arbitrary world coordinates using nearest-neighbor lookup.
+ * Samples a finite biome map at world coordinates using nearest-neighbor lookup.
  */
 export function getBiomeAt(
   worldX: number,

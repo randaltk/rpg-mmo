@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useCallback, useState, useRef } from "react";
-import { GameMap } from "@/types/game";
-import { allMaps } from "@/data/maps";
+import { useEffect, useCallback, useState, useRef, useMemo } from "react";
+import { GameMap, PortalTier } from "@/types/game";
+import { allMaps, getMap, registerDynamicMap } from "@/data/maps";
 import { useGameStore } from "@/stores/gameStore";
-import { getHeightAt } from "@/lib/worldgen/terrain";
-import { getBiomeAt } from "@/lib/worldgen/biomes";
+import { getHeightAt, createTerrainSampler } from "@/lib/worldgen/terrain";
+import { getBiomeAt, createBiomeSampler } from "@/lib/worldgen/biomes";
+import { TOWN_SEED } from "@/data/maps/town";
+import { generateDungeon } from "@/lib/worldgen/dungeon";
 
 interface UseGameControlsProps {
   currentPlayer: { x: number; y: number; z: number; currentMapId?: string } | null;
   movePlayer: (pos: { x: number; y: number; z: number }) => void;
   emitMove: (pos: { x: number; y: number; z: number }) => void;
   emitChangeMap: (mapId: string) => void;
+  emitEnterDungeon?: (data: { caveSeed: number; tier: PortalTier; portalX: number; portalZ: number }) => void;
   onInventoryToggle: () => void;
   onInteractionMessage: (msg: string | null) => void;
 }
@@ -21,19 +24,34 @@ export function useGameControls({
   movePlayer,
   emitMove,
   emitChangeMap,
+  emitEnterDungeon,
   onInventoryToggle,
   onInteractionMessage,
 }: UseGameControlsProps) {
-  const [currentMap, setCurrentMap] = useState<GameMap>(allMaps.castle);
+  const playerMapId = currentPlayer?.currentMapId;
+  const resolvedMap = (playerMapId && getMap(playerMapId)) ? getMap(playerMapId)! : allMaps.castle;
+  const [currentMap, setCurrentMap] = useState<GameMap>(resolvedMap);
   const currentMapRef = useRef(currentMap);
   currentMapRef.current = currentMap;
 
   useEffect(() => {
-    const mapId = currentPlayer?.currentMapId;
-    if (mapId && allMaps[mapId] && currentMapRef.current.id !== mapId) {
-      setCurrentMap(allMaps[mapId]);
+    if (resolvedMap && resolvedMap !== currentMapRef.current) {
+      setCurrentMap(resolvedMap);
     }
-  }, [currentPlayer?.currentMapId]);
+  }, [resolvedMap]);
+
+  const resolvedSamplers = useMemo(() => {
+    if (currentMap.terrainSampler && currentMap.biomeSampler) {
+      return { terrain: currentMap.terrainSampler, biome: currentMap.biomeSampler };
+    }
+    if (currentMap.id === 'town') {
+      return { terrain: createTerrainSampler(TOWN_SEED), biome: createBiomeSampler(TOWN_SEED) };
+    }
+    return null;
+  }, [currentMap]);
+
+  const samplersRef = useRef(resolvedSamplers);
+  samplersRef.current = resolvedSamplers;
 
   const keysPressed = useRef(new Set<string>());
   const currentPlayerRef = useRef(currentPlayer);
@@ -45,6 +63,8 @@ export function useGameControls({
   emitMoveRef.current = emitMove;
   const emitChangeMapRef = useRef(emitChangeMap);
   emitChangeMapRef.current = emitChangeMap;
+  const emitEnterDungeonRef = useRef(emitEnterDungeon);
+  emitEnterDungeonRef.current = emitEnterDungeon;
 
   const checkCollision = useCallback(
     (x: number, y: number, z: number) => {
@@ -64,26 +84,52 @@ export function useGameControls({
       const portalRange = 2;
       const map = currentMapRef.current;
 
-      for (const obj of map.objects) {
-        if (obj.type === "portal" && obj.portalTo) {
-          const dist = Math.sqrt(
-            Math.pow(px - obj.x, 2) + Math.pow(pz - obj.z, 2)
-          );
+      const allPortals = [...map.objects.filter(o => o.type === 'portal' && o.portalTo)];
+      const nearbyDgPortals = useGameStore.getState().nearbyPortals;
+      for (const p of nearbyDgPortals) {
+        if (!allPortals.some(e => e.id === p.id)) allPortals.push(p);
+      }
 
-          if (dist <= portalRange) {
-            const targetMap = allMaps[obj.portalTo];
-            if (targetMap && obj.portalSpawn) {
-              portalCooldownRef.current = Date.now() + 2000;
-              setCurrentMap(targetMap);
-              emitChangeMapRef.current(targetMap.id);
-              const spawnPos = { x: obj.portalSpawn.x, y: obj.portalSpawn.y, z: obj.portalSpawn.z };
-              useGameStore.getState().setTeleportTo(spawnPos);
-              movePlayerRef.current(spawnPos);
-              onInteractionMessage(`Teleportado para ${targetMap.name}!`);
-              setTimeout(() => onInteractionMessage(null), 3000);
-            }
-            return;
+      for (const obj of allPortals) {
+        const dist = Math.sqrt((px - obj.x) ** 2 + (pz - obj.z) ** 2);
+        if (dist > portalRange) continue;
+
+        const portalTo = obj.portalTo!;
+
+        if (portalTo.startsWith('dungeon_')) {
+          const caveSeed = parseInt(portalTo.replace('dungeon_', ''), 10);
+          const tier = obj.portalTier ?? 'easy';
+          const origin = { x: obj.x, z: obj.z };
+
+          let dungeonMap = getMap(portalTo);
+          if (!dungeonMap) {
+            dungeonMap = generateDungeon(caveSeed, tier, origin);
+            registerDynamicMap(dungeonMap);
           }
+
+          portalCooldownRef.current = Date.now() + 3000;
+          setCurrentMap(dungeonMap);
+          emitEnterDungeonRef.current?.({ caveSeed, tier, portalX: obj.x, portalZ: obj.z });
+
+          const spawn = dungeonMap.spawnPoints[0] ?? { x: 0, y: 0, z: 0 };
+          useGameStore.getState().setTeleportTo(spawn);
+          movePlayerRef.current(spawn);
+          onInteractionMessage(`Entrando: ${dungeonMap.name}!`);
+          setTimeout(() => onInteractionMessage(null), 3000);
+          return;
+        }
+
+        const targetMap = getMap(portalTo);
+        if (targetMap && obj.portalSpawn) {
+          portalCooldownRef.current = Date.now() + 3000;
+          setCurrentMap(targetMap);
+          emitChangeMapRef.current(targetMap.id);
+          const spawnPos = { x: obj.portalSpawn.x, y: obj.portalSpawn.y, z: obj.portalSpawn.z };
+          useGameStore.getState().setTeleportTo(spawnPos);
+          movePlayerRef.current(spawnPos);
+          onInteractionMessage(`Teleportado para ${targetMap.name}!`);
+          setTimeout(() => onInteractionMessage(null), 3000);
+          return;
         }
       }
     },
@@ -257,18 +303,22 @@ export function useGameControls({
             localPos.z = newZ;
 
             const map = currentMapRef.current;
-            if (map.heightmap && map.heightmapResolution) {
+            const s = samplersRef.current;
+            if (s) {
+              localPos.y = s.terrain(localPos.x, localPos.z);
+              useGameStore.getState().setPlayerBiome(s.biome(localPos.x, localPos.z));
+            } else if (map.heightmap && map.heightmapResolution) {
               localPos.y = getHeightAt(
                 localPos.x, localPos.z,
                 map.heightmap, map.width, map.height, map.heightmapResolution,
               );
-            }
-            if (map.biomeMap && map.biomeMapResolution) {
-              const biome = getBiomeAt(
-                localPos.x, localPos.z,
-                map.biomeMap, map.width, map.height, map.biomeMapResolution,
-              );
-              useGameStore.getState().setPlayerBiome(biome);
+              if (map.biomeMap && map.biomeMapResolution) {
+                const biome = getBiomeAt(
+                  localPos.x, localPos.z,
+                  map.biomeMap, map.width, map.height, map.biomeMapResolution,
+                );
+                useGameStore.getState().setPlayerBiome(biome);
+              }
             }
           }
 
