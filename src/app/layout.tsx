@@ -1,11 +1,8 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
-  title: 'RPG MMO 3D - Jogo de RPG Multiplayer no Navegador',
+  title: 'Legends of Aldoria - RPG MMO 3D no Navegador',
   description: 'Explore castelos, cavernas cristalinas e vastas planícies neste RPG MMO 3D direto no navegador. Jogue com amigos em tempo real, sem downloads.',
 }
 
@@ -16,8 +13,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>{children}</body>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Roboto:wght@300;400;500;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="font-roboto">{children}</body>
     </html>
   )
 }
-

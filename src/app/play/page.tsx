@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Game3D from '@/components/game/Game3D';
 import Chat from '@/components/ui/Chat';
 import PlayersList from '@/components/ui/PlayersList';
@@ -13,16 +14,16 @@ const CLASS_ORDER: CharacterClass[] = [
   'knight', 'paladin', 'rogue', 'assassin', 'ranger', 'wizard', 'sorcerer', 'priest', 'monk',
 ];
 
-const CLASS_INFO: Record<CharacterClass, { emoji: string; label: string; weapon: string; desc: string }> = {
-  knight:   { emoji: '⚔️',  label: 'Knight',   weapon: 'Espada + Escudo', desc: 'Armadura pesada prateada, visual imponente de cavaleiro medieval' },
-  paladin:  { emoji: '🛡️', label: 'Paladin',  weapon: 'Espada + Escudo', desc: 'Armadura branca com detalhes dourados, aparência sagrada' },
-  rogue:    { emoji: '🗡️', label: 'Rogue',    weapon: 'Adaga',           desc: 'Roupa de couro escura, estilo furtivo e ágil' },
-  assassin: { emoji: '🥷',  label: 'Assassin', weapon: 'Katar',           desc: 'Visual sombrio com máscara, ágil e letal' },
-  ranger:   { emoji: '🏹',  label: 'Ranger',   weapon: 'Arco',            desc: 'Caçador da floresta com couro leve e verde' },
-  wizard:   { emoji: '🧙',  label: 'Wizard',   weapon: 'Cajado',          desc: 'Túnica azul com chapéu pontudo clássico de mago' },
-  sorcerer: { emoji: '✨',  label: 'Sorcerer', weapon: 'Cajado + Livro',  desc: 'Roupa elegante e mística, tons roxos e dourados' },
-  priest:   { emoji: '🙏',  label: 'Priest',   weapon: 'Cajado',          desc: 'Túnica branca clerical com detalhes dourados' },
-  monk:     { emoji: '👊',  label: 'Monk',     weapon: 'Soqueiras',       desc: 'Artista marcial disciplinado, roupa leve' },
+const CLASS_INFO: Record<CharacterClass, { label: string; weapon: string; desc: string; img: string }> = {
+  knight:   { label: 'Knight',   weapon: 'Espada + Escudo', desc: 'Armadura pesada prateada, visual imponente de cavaleiro medieval',       img: '/rpg-assets/knight_aldoria.png' },
+  paladin:  { label: 'Paladin',  weapon: 'Espada + Escudo', desc: 'Armadura branca com detalhes dourados, aparência sagrada',               img: '/rpg-assets/paladin_aldoria.png' },
+  rogue:    { label: 'Rogue',    weapon: 'Adaga',           desc: 'Roupa de couro escura, estilo furtivo e ágil',                           img: '/rpg-assets/rogue_aldoria.png' },
+  assassin: { label: 'Assassin', weapon: 'Katar',           desc: 'Visual sombrio com máscara, ágil e letal',                               img: '/rpg-assets/assassin_aldoria.png' },
+  ranger:   { label: 'Ranger',   weapon: 'Arco',            desc: 'Caçador da floresta com couro leve e verde',                             img: '/rpg-assets/ranger_aldoria.png' },
+  wizard:   { label: 'Wizard',   weapon: 'Cajado',          desc: 'Túnica azul com chapéu pontudo clássico de mago',                        img: '/rpg-assets/wizard_aldoria.png' },
+  sorcerer: { label: 'Sorcerer', weapon: 'Cajado + Livro',  desc: 'Roupa elegante e mística, tons roxos e dourados',                        img: '/rpg-assets/wizard_aldoria.png' },
+  priest:   { label: 'Priest',   weapon: 'Cajado',          desc: 'Túnica branca clerical com detalhes dourados',                           img: '/rpg-assets/paladin_aldoria.png' },
+  monk:     { label: 'Monk',     weapon: 'Soqueiras',       desc: 'Artista marcial disciplinado, roupa leve',                               img: '/rpg-assets/assassin_aldoria.png' },
 };
 
 function NicknameScreen({ onStart }: { onStart: (nickname: string, characterClass: CharacterClass) => void }) {
@@ -38,142 +39,184 @@ function NicknameScreen({ onStart }: { onStart: (nickname: string, characterClas
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-purple-900/20 via-transparent to-cyan-900/20 pointer-events-none" />
+    <div className="min-h-screen bg-[#0A0E27] flex items-center justify-center relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0">
+        <Image src="/rpg-assets/landing_bg.png" alt="" fill className="object-cover opacity-20" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0A0E27]/70 via-[#0A0E27]/80 to-[#0A0E27]" />
+      </div>
+
+      {/* Particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {Array.from({ length: 20 }).map((_, i) => (
           <div
             key={i}
-            className="absolute rounded-full opacity-15 animate-float"
+            className="absolute rounded-full animate-float"
             style={{
-              width: `${3 + (i % 3) * 2}px`,
-              height: `${3 + (i % 3) * 2}px`,
+              width: `${3 + (i % 3) * 1.5}px`,
+              height: `${3 + (i % 3) * 1.5}px`,
               left: `${(i * 5) % 100}%`,
               top: `${(i * 7) % 100}%`,
-              backgroundColor: ['#9B30FF', '#00E5FF', '#FFD700'][i % 3],
+              backgroundColor: ['#D4AF37', '#7B3FF2', '#FFD700'][i % 3],
               animationDelay: `${i * 0.5}s`,
               animationDuration: `${5 + (i % 4) * 2}s`,
+              opacity: 0.15,
             }}
           />
         ))}
       </div>
 
-        <div className="relative z-10 w-full max-w-lg px-6">
-        {/* Back button */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Voltar
-        </Link>
+      <div className="relative z-10 w-full max-w-5xl px-4 py-8 flex flex-col lg:flex-row gap-6 items-stretch">
+        {/* Left: selected class preview */}
+        <div className="hidden lg:flex flex-col items-center justify-center w-64 flex-shrink-0">
+          <div className="w-52 h-52 rounded-xl border-2 border-[#D4AF37]/50 bg-[#1A3A52]/50 overflow-hidden shadow-[0_0_30px_rgba(212,175,55,0.2)] mb-4">
+            <Image
+              src={CLASS_INFO[selectedClass].img}
+              alt={CLASS_INFO[selectedClass].label}
+              width={220}
+              height={220}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="text-center">
+            <div className="font-cinzel font-bold text-[#D4AF37] text-xl">{CLASS_INFO[selectedClass].label}</div>
+            <div className="text-white/50 text-sm mt-1">{CLASS_INFO[selectedClass].weapon}</div>
+            <p className="text-white/40 text-xs mt-2 italic max-w-[200px]">{CLASS_INFO[selectedClass].desc}</p>
+          </div>
+        </div>
 
-        {/* Card */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-sm">
-          {/* Logo */}
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center font-bold text-xl">
-              R
+        {/* Center: main form */}
+        <div className="flex-1 max-w-lg mx-auto lg:mx-0">
+          {/* Back button */}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-[#D4AF37]/60 hover:text-[#D4AF37] transition-colors mb-4 group"
+          >
+            <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="font-cinzel text-sm">Voltar</span>
+          </Link>
+
+          {/* Card */}
+          <div className="bg-[#1A3A52]/70 border-2 border-[#D4AF37]/50 rounded-xl p-6 sm:p-8 backdrop-blur-md shadow-[0_0_25px_rgba(212,175,55,0.2)]">
+            {/* Logo */}
+            <div className="flex justify-center mb-4">
+              <Image src="/rpg-assets/logo_aldoria.png" alt="Legends of Aldoria" width={260} height={100} className="h-16 w-auto" />
             </div>
-          </div>
-          <h1 className="text-2xl font-bold text-center mb-1">RPG MMO 3D</h1>
-          <p className="text-gray-400 text-center text-sm mb-8">Escolha seu nome e classe</p>
-
-          {/* Connection status */}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-            <span className={`text-xs ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-              {isConnected ? 'Servidor conectado' : 'Conectando ao servidor...'}
-            </span>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="nickname" className="block text-sm font-medium text-gray-300 mb-2">
-                Nickname
-              </label>
-              <input
-                id="nickname"
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="Ex: DragonSlayer"
-                className="w-full px-4 py-3 bg-white/5 border border-white/15 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
-                maxLength={20}
-                autoFocus
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1.5">{nickname.length}/20 caracteres</p>
+            <p className="text-white/50 text-center text-sm mb-1">Escolha seu nome e classe</p>
+            <div className="flex items-center justify-center gap-3 my-2">
+              <div className="h-px flex-1 max-w-[50px] bg-gradient-to-r from-transparent to-[#D4AF37]/50" />
+              <div className="w-1.5 h-1.5 rotate-45 bg-[#D4AF37]/60" />
+              <div className="h-px flex-1 max-w-[50px] bg-gradient-to-l from-transparent to-[#D4AF37]/50" />
             </div>
 
-            {/* Class Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Classe
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {CLASS_ORDER.map(cls => (
-                  <button
-                    key={cls}
-                    type="button"
-                    onClick={() => setSelectedClass(cls)}
-                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                      selectedClass === cls
-                        ? 'border-purple-500 bg-purple-500/15 ring-1 ring-purple-500/40 scale-[1.03]'
-                        : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.08]'
-                    }`}
-                  >
-                    <div className="text-xl mb-0.5">{CLASS_INFO[cls].emoji}</div>
-                    <div className="text-[11px] font-bold text-white">{CLASS_INFO[cls].label}</div>
-                    <div className="text-[9px] text-gray-500 leading-tight">{CLASS_INFO[cls].weapon}</div>
-                  </button>
+            {/* Connection status */}
+            <div className="flex items-center justify-center gap-2 my-4">
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+              <span className={`text-xs font-medium ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                {isConnected ? 'Servidor conectado' : 'Conectando ao servidor...'}
+              </span>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="nickname" className="block text-sm font-cinzel font-bold text-[#D4AF37] mb-2">
+                  Nickname
+                </label>
+                <input
+                  id="nickname"
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Ex: DragonSlayer"
+                  className="w-full px-4 py-3 bg-[#0A0E27]/60 border-2 border-[#D4AF37]/30 rounded-lg text-white placeholder-white/25 focus:outline-none focus:border-[#D4AF37] focus:shadow-[0_0_15px_rgba(212,175,55,0.3)] transition-all"
+                  maxLength={20}
+                  autoFocus
+                  required
+                />
+                <p className="text-xs text-white/25 mt-1.5">{nickname.length}/20 caracteres</p>
+              </div>
+
+              {/* Class Selection Grid with images */}
+              <div>
+                <label className="block text-sm font-cinzel font-bold text-[#D4AF37] mb-3">
+                  Classe
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {CLASS_ORDER.map(cls => (
+                    <button
+                      key={cls}
+                      type="button"
+                      onClick={() => setSelectedClass(cls)}
+                      className={`p-2 rounded-lg border-2 text-center transition-all cursor-pointer group relative overflow-hidden ${
+                        selectedClass === cls
+                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 shadow-[0_0_15px_rgba(212,175,55,0.3)] scale-[1.03]'
+                          : 'border-[#D4AF37]/15 bg-[#0A0E27]/40 hover:border-[#D4AF37]/40 hover:bg-[#1A3A52]/50'
+                      }`}
+                    >
+                      {selectedClass === cls && (
+                        <div className="absolute inset-0 bg-gradient-to-b from-[#D4AF37]/10 to-transparent pointer-events-none" />
+                      )}
+                      <div className="relative">
+                        <div className="w-10 h-10 mx-auto mb-1 rounded overflow-hidden border border-[#D4AF37]/20">
+                          <Image
+                            src={CLASS_INFO[cls].img}
+                            alt={CLASS_INFO[cls].label}
+                            width={44}
+                            height={44}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className={`text-[11px] font-cinzel font-bold ${selectedClass === cls ? 'text-[#D4AF37]' : 'text-white/70'}`}>
+                          {CLASS_INFO[cls].label}
+                        </div>
+                        <div className="text-[9px] text-white/35 leading-tight">{CLASS_INFO[cls].weapon}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {/* Mobile class preview */}
+                <div className="lg:hidden flex items-center gap-3 mt-3 p-3 rounded-lg bg-[#0A0E27]/40 border border-[#D4AF37]/20">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-[#D4AF37]/30 flex-shrink-0">
+                    <Image src={CLASS_INFO[selectedClass].img} alt={CLASS_INFO[selectedClass].label} width={60} height={60} className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <div className="font-cinzel font-bold text-[#D4AF37] text-sm">{CLASS_INFO[selectedClass].label}</div>
+                    <p className="text-[11px] text-white/40 italic">{CLASS_INFO[selectedClass].desc}</p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!nickname.trim() || !isConnected}
+                className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border-2 border-[#FFD700] rounded-lg font-cinzel font-black text-[#0A0E27] tracking-wider transition-all hover:-translate-y-0.5 hover:shadow-[0_0_30px_rgba(212,175,55,0.5)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed uppercase animate-border-glow text-lg"
+              >
+                {isConnected ? 'Iniciar Aventura' : 'Aguardando servidor...'}
+              </button>
+            </form>
+
+            {/* Controls hint */}
+            <div className="mt-6 pt-5 border-t-2 border-[#D4AF37]/15">
+              <p className="text-xs text-[#D4AF37]/50 font-cinzel font-bold mb-3 uppercase tracking-widest">Controles</p>
+              <div className="grid grid-cols-2 gap-2 text-xs text-white/40">
+                {[
+                  { key: 'WASD', action: 'Mover' },
+                  { key: 'Mouse', action: 'Girar câmera' },
+                  { key: 'E', action: 'Interagir' },
+                  { key: 'Scroll', action: 'Zoom' },
+                  { key: 'I', action: 'Inventário' },
+                  { key: '2x Click', action: 'Reset câmera' },
+                ].map((ctrl, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <kbd className="px-1.5 py-0.5 bg-[#D4AF37]/10 border border-[#D4AF37]/25 rounded text-[10px] font-mono text-[#D4AF37]/70">
+                      {ctrl.key}
+                    </kbd>
+                    <span>{ctrl.action}</span>
+                  </div>
                 ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-2.5 text-center italic min-h-[2.5em]">
-                {CLASS_INFO[selectedClass].desc}
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!nickname.trim() || !isConnected}
-              className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-cyan-600 rounded-xl font-bold text-white transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/25 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed"
-            >
-              {isConnected ? 'Iniciar Aventura' : 'Aguardando servidor...'}
-            </button>
-          </form>
-
-          {/* Controls hint */}
-          <div className="mt-8 pt-6 border-t border-white/10">
-            <p className="text-xs text-gray-500 font-medium mb-3 uppercase tracking-wider">Controles</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">WASD</kbd>
-                <span>Mover</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">Mouse</kbd>
-                <span>Girar câmera</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">E</kbd>
-                <span>Interagir</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">Scroll</kbd>
-                <span>Zoom</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">I</kbd>
-                <span>Inventário</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">2x Click</kbd>
-                <span>Reset câmera</span>
               </div>
             </div>
           </div>
@@ -195,29 +238,28 @@ function TargetInfo() {
     : '?';
 
   return (
-    <div className="fixed top-4 right-4 z-50 bg-black/80 backdrop-blur-sm border border-red-500/30 rounded-xl p-3 min-w-[200px]">
+    <div className="fixed top-4 right-4 z-50 bg-[#0A0E27]/90 backdrop-blur-sm border-2 border-[#C41E3A]/50 rounded-lg p-3 min-w-[200px] shadow-[0_0_15px_rgba(196,30,58,0.2)]">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <span className="text-red-400 font-bold text-sm">{target.name}</span>
-          <span className="text-yellow-400 text-xs ml-2">Lv.{target.level}</span>
+          <span className="text-[#C41E3A] font-cinzel font-bold text-sm">{target.name}</span>
+          <span className="text-[#D4AF37] text-xs ml-2 font-bold">Lv.{target.level}</span>
         </div>
-        <button
-          onClick={() => setTargetMonsterId(null)}
-          className="text-gray-400 hover:text-white text-xs px-1"
-        >
-          ✕
-        </button>
+        <button onClick={() => setTargetMonsterId(null)} className="text-white/30 hover:text-white text-xs px-1 transition-colors">✕</button>
       </div>
-      <div className="w-full bg-gray-800 rounded-full h-3 mb-1">
+      <div className="w-full bg-[#0A0E27] rounded-full h-3 mb-1 border border-[#C41E3A]/30 overflow-hidden">
         <div
-          className="h-3 rounded-full transition-all duration-300"
+          className="h-full rounded-full transition-all duration-300"
           style={{
             width: `${hpPercent}%`,
-            backgroundColor: hpPercent > 50 ? '#E74C3C' : hpPercent > 25 ? '#F1C40F' : '#C0392B',
+            background: hpPercent > 50
+              ? 'linear-gradient(90deg, #C41E3A, #E74C3C)'
+              : hpPercent > 25
+                ? 'linear-gradient(90deg, #B8860B, #D4AF37)'
+                : 'linear-gradient(90deg, #8B0000, #C41E3A)',
           }}
         />
       </div>
-      <div className="flex justify-between text-xs text-gray-400">
+      <div className="flex justify-between text-xs text-white/40 font-mono">
         <span>{target.hp}/{target.maxHp} HP</span>
         <span>{dist}m</span>
       </div>
@@ -233,36 +275,43 @@ function PlayerHUD() {
   const expPercent = (currentPlayer.experience / (currentPlayer.level * 100)) * 100;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl p-3 min-w-[300px]">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-[#0A0E27]/85 backdrop-blur-sm border-2 border-[#D4AF37]/40 rounded-lg p-3 min-w-[320px] shadow-[0_0_20px_rgba(212,175,55,0.15)]">
       <div className="flex items-center gap-3 mb-2">
-        <div className="text-white font-bold text-sm">{currentPlayer.nickname}</div>
-        <div className="text-yellow-400 text-xs">Lv.{currentPlayer.level}</div>
-        <div className="text-gray-400 text-xs ml-auto">ATK:{currentPlayer.attack} DEF:{currentPlayer.defense}</div>
+        <div className="text-white font-cinzel font-bold text-sm">{currentPlayer.nickname}</div>
+        <div className="text-[#D4AF37] text-xs font-bold">Lv.{currentPlayer.level}</div>
+        <div className="text-[#C0C0C0] text-xs ml-auto font-medium">ATK:{currentPlayer.attack} DEF:{currentPlayer.defense}</div>
       </div>
       {/* HP */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-red-400 text-xs font-bold w-6">HP</span>
-        <div className="flex-1 bg-gray-800 rounded-full h-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-[#C41E3A] text-xs font-cinzel font-bold w-7">HP</span>
+        <div className="flex-1 bg-[#0A0E27] rounded-full h-3 border border-[#D4AF37]/20 overflow-hidden">
           <div
-            className="h-3 rounded-full transition-all duration-300"
+            className="h-full rounded-full transition-all duration-300"
             style={{
               width: `${hpPercent}%`,
-              backgroundColor: hpPercent > 50 ? '#2ECC71' : hpPercent > 25 ? '#F1C40F' : '#E74C3C',
+              background: hpPercent > 50
+                ? 'linear-gradient(90deg, #2D5016, #4CAF50)'
+                : hpPercent > 25
+                  ? 'linear-gradient(90deg, #B8860B, #D4AF37)'
+                  : 'linear-gradient(90deg, #8B0000, #C41E3A)',
             }}
           />
         </div>
-        <span className="text-xs text-gray-400 w-16 text-right">{currentPlayer.hp}/{currentPlayer.maxHp}</span>
+        <span className="text-xs text-white/40 w-16 text-right font-mono">{currentPlayer.hp}/{currentPlayer.maxHp}</span>
       </div>
       {/* EXP */}
       <div className="flex items-center gap-2">
-        <span className="text-blue-400 text-xs font-bold w-6">EXP</span>
-        <div className="flex-1 bg-gray-800 rounded-full h-2">
+        <span className="text-[#4A8FD8] text-xs font-cinzel font-bold w-7">EXP</span>
+        <div className="flex-1 bg-[#0A0E27] rounded-full h-2.5 border border-[#D4AF37]/20 overflow-hidden">
           <div
-            className="h-2 rounded-full bg-blue-500 transition-all duration-300"
-            style={{ width: `${expPercent}%` }}
+            className="h-full rounded-full transition-all duration-300"
+            style={{
+              width: `${expPercent}%`,
+              background: 'linear-gradient(90deg, #2E5C8A, #4A8FD8)',
+            }}
           />
         </div>
-        <span className="text-xs text-gray-400 w-16 text-right">{currentPlayer.experience}/{currentPlayer.level * 100}</span>
+        <span className="text-xs text-white/40 w-16 text-right font-mono">{currentPlayer.experience}/{currentPlayer.level * 100}</span>
       </div>
     </div>
   );
@@ -299,7 +348,7 @@ function GameScreen() {
       <PlayerHUD />
 
       {interactionMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white px-6 py-3 rounded-xl z-50 border border-white/10 text-sm font-medium">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-[#0A0E27]/90 backdrop-blur-sm text-[#D4AF37] px-6 py-3 rounded-lg z-50 border-2 border-[#D4AF37]/50 text-sm font-cinzel font-bold shadow-[0_0_20px_rgba(212,175,55,0.3)]">
           {interactionMessage}
         </div>
       )}
