@@ -68,12 +68,17 @@ const CLASSES = [
   {
     name: "Sorcerer",
     weapon: "Cajado + Livro",
-    img: "/rpg-assets/wizard_aldoria.png",
+    img: "/rpg-assets/sorcerer_aldoria.png",
   },
   {
     name: "Priest",
     weapon: "Cajado + Cura",
-    img: "/rpg-assets/paladin_aldoria.png",
+    img: "/rpg-assets/priest_aldoria.png",
+  },
+  {
+    name: "Monk",
+    weapon: "Soqueiras / Manoplas",
+    img: "/rpg-assets/monk_aldoria.png",
   },
 ];
 
@@ -348,12 +353,12 @@ export default function LandingPage() {
             </h2>
             <GoldDivider />
             <p className="text-white/60 max-w-xl mx-auto mt-4">
-              Selecione entre 8 classes únicas, cada uma com habilidades e
+              Selecione entre 9 classes únicas, cada uma com habilidades e
               estilos de jogo distintos.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 lg:gap-6">
+          <div className="grid grid-cols-3 gap-4 lg:gap-6">
             {CLASSES.map((cls, i) => (
               <div
                 key={i}

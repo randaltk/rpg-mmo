@@ -1,25 +1,81 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useSocket } from '@/hooks/useSocket';
-import { CharacterClass } from '@/types/game';
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useSocket } from "@/hooks/useSocket";
+import { CharacterClass } from "@/types/game";
 
 const CLASS_ORDER: CharacterClass[] = [
-  'knight', 'paladin', 'rogue', 'assassin', 'ranger', 'wizard', 'sorcerer', 'priest', 'monk',
+  "knight",
+  "paladin",
+  "rogue",
+  "assassin",
+  "ranger",
+  "wizard",
+  "sorcerer",
+  "priest",
+  "monk",
 ];
 
-const CLASS_INFO: Record<CharacterClass, { label: string; weapon: string; desc: string; img: string }> = {
-  knight:   { label: 'Knight',   weapon: 'Espada + Escudo', desc: 'Armadura pesada prateada, visual imponente de cavaleiro medieval',       img: '/rpg-assets/knight_aldoria.png' },
-  paladin:  { label: 'Paladin',  weapon: 'Espada + Escudo', desc: 'Armadura branca com detalhes dourados, aparência sagrada',               img: '/rpg-assets/paladin_aldoria.png' },
-  rogue:    { label: 'Rogue',    weapon: 'Adaga',           desc: 'Roupa de couro escura, estilo furtivo e ágil',                           img: '/rpg-assets/rogue_aldoria.png' },
-  assassin: { label: 'Assassin', weapon: 'Katar',           desc: 'Visual sombrio com máscara, ágil e letal',                               img: '/rpg-assets/assassin_aldoria.png' },
-  ranger:   { label: 'Ranger',   weapon: 'Arco',            desc: 'Caçador da floresta com couro leve e verde',                             img: '/rpg-assets/ranger_aldoria.png' },
-  wizard:   { label: 'Wizard',   weapon: 'Cajado',          desc: 'Túnica azul com chapéu pontudo clássico de mago',                        img: '/rpg-assets/wizard_aldoria.png' },
-  sorcerer: { label: 'Sorcerer', weapon: 'Cajado + Livro',  desc: 'Roupa elegante e mística, tons roxos e dourados',                        img: '/rpg-assets/wizard_aldoria.png' },
-  priest:   { label: 'Priest',   weapon: 'Cajado',          desc: 'Túnica branca clerical com detalhes dourados',                           img: '/rpg-assets/paladin_aldoria.png' },
-  monk:     { label: 'Monk',     weapon: 'Soqueiras',       desc: 'Artista marcial disciplinado, roupa leve',                               img: '/rpg-assets/assassin_aldoria.png' },
+const CLASS_INFO: Record<
+  CharacterClass,
+  { label: string; weapon: string; desc: string; img: string }
+> = {
+  knight: {
+    label: "Knight",
+    weapon: "Espada + Escudo",
+    desc: "Armadura pesada prateada, visual imponente de cavaleiro medieval",
+    img: "/rpg-assets/knight_aldoria.png",
+  },
+  paladin: {
+    label: "Paladin",
+    weapon: "Espada + Escudo",
+    desc: "Armadura branca com detalhes dourados, aparência sagrada",
+    img: "/rpg-assets/paladin_aldoria.png",
+  },
+  rogue: {
+    label: "Rogue",
+    weapon: "Adaga",
+    desc: "Roupa de couro escura, estilo furtivo e ágil",
+    img: "/rpg-assets/rogue_aldoria.png",
+  },
+  assassin: {
+    label: "Assassin",
+    weapon: "Katar",
+    desc: "Visual sombrio com máscara, ágil e letal",
+    img: "/rpg-assets/assassin_aldoria.png",
+  },
+  ranger: {
+    label: "Ranger",
+    weapon: "Arco",
+    desc: "Caçador da floresta com couro leve e verde",
+    img: "/rpg-assets/ranger_aldoria.png",
+  },
+  wizard: {
+    label: "Wizard",
+    weapon: "Cajado",
+    desc: "Túnica azul com chapéu pontudo clássico de mago",
+    img: "/rpg-assets/wizard_aldoria.png",
+  },
+  sorcerer: {
+    label: "Sorcerer",
+    weapon: "Cajado + Livro",
+    desc: "Roupa elegante e mística, tons roxos e dourados",
+    img: "/rpg-assets/sorcerer_aldoria.png",
+  },
+  priest: {
+    label: "Priest",
+    weapon: "Cajado",
+    desc: "Túnica branca clerical com detalhes dourados",
+    img: "/rpg-assets/priest_aldoria.png",
+  },
+  monk: {
+    label: "Monk",
+    weapon: "Soqueiras",
+    desc: "Artista marcial disciplinado, roupa leve",
+    img: "/rpg-assets/monk_aldoria.png",
+  },
 };
 
 interface NicknameScreenProps {
@@ -27,8 +83,8 @@ interface NicknameScreenProps {
 }
 
 export default function NicknameScreen({ onStart }: NicknameScreenProps) {
-  const [nickname, setNickname] = useState('');
-  const [selectedClass, setSelectedClass] = useState<CharacterClass>('knight');
+  const [nickname, setNickname] = useState("");
+  const [selectedClass, setSelectedClass] = useState<CharacterClass>("knight");
   const { isConnected } = useSocket();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -42,7 +98,12 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
     <div className="min-h-screen bg-[#0A0E27] flex items-center justify-center relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0">
-        <Image src="/rpg-assets/landing_bg.png" alt="" fill className="object-cover opacity-20" />
+        <Image
+          src="/rpg-assets/landing_bg.png"
+          alt=""
+          fill
+          className="object-cover opacity-20"
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-[#0A0E27]/70 via-[#0A0E27]/80 to-[#0A0E27]" />
       </div>
 
@@ -57,7 +118,7 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
               height: `${3 + (i % 3) * 1.5}px`,
               left: `${(i * 5) % 100}%`,
               top: `${(i * 7) % 100}%`,
-              backgroundColor: ['#D4AF37', '#7B3FF2', '#FFD700'][i % 3],
+              backgroundColor: ["#D4AF37", "#7B3FF2", "#FFD700"][i % 3],
               animationDelay: `${i * 0.5}s`,
               animationDuration: `${5 + (i % 4) * 2}s`,
               opacity: 0.15,
@@ -79,9 +140,15 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
             />
           </div>
           <div className="text-center">
-            <div className="font-cinzel font-bold text-[#D4AF37] text-xl">{CLASS_INFO[selectedClass].label}</div>
-            <div className="text-white/50 text-sm mt-1">{CLASS_INFO[selectedClass].weapon}</div>
-            <p className="text-white/40 text-xs mt-2 italic max-w-[200px]">{CLASS_INFO[selectedClass].desc}</p>
+            <div className="font-cinzel font-bold text-[#D4AF37] text-xl">
+              {CLASS_INFO[selectedClass].label}
+            </div>
+            <div className="text-white/50 text-sm mt-1">
+              {CLASS_INFO[selectedClass].weapon}
+            </div>
+            <p className="text-white/40 text-xs mt-2 italic max-w-[200px]">
+              {CLASS_INFO[selectedClass].desc}
+            </p>
           </div>
         </div>
 
@@ -91,17 +158,35 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
             href="/"
             className="inline-flex items-center gap-2 text-[#D4AF37]/60 hover:text-[#D4AF37] transition-colors mb-4 group"
           >
-            <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-4 h-4 group-hover:-translate-x-1 transition-transform"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
             <span className="font-cinzel text-sm">Voltar</span>
           </Link>
 
           <div className="bg-[#1A3A52]/70 border-2 border-[#D4AF37]/50 rounded-xl p-6 sm:p-8 backdrop-blur-md shadow-[0_0_25px_rgba(212,175,55,0.2)]">
             <div className="flex justify-center mb-4">
-              <Image src="/rpg-assets/logo_aldoria.png" alt="Legends of Aldoria" width={260} height={100} className="h-16 w-auto" />
+              <Image
+                src="/rpg-assets/logo_aldoria.png"
+                alt="Legends of Aldoria"
+                width={260}
+                height={100}
+                className="h-16 w-auto"
+              />
             </div>
-            <p className="text-white/50 text-center text-sm mb-1">Escolha seu nome e classe</p>
+            <p className="text-white/50 text-center text-sm mb-1">
+              Escolha seu nome e classe
+            </p>
             <div className="flex items-center justify-center gap-3 my-2">
               <div className="h-px flex-1 max-w-[50px] bg-gradient-to-r from-transparent to-[#D4AF37]/50" />
               <div className="w-1.5 h-1.5 rotate-45 bg-[#D4AF37]/60" />
@@ -109,15 +194,24 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
             </div>
 
             <div className="flex items-center justify-center gap-2 my-4">
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-              <span className={`text-xs font-medium ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-                {isConnected ? 'Servidor conectado' : 'Conectando ao servidor...'}
+              <span
+                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+              />
+              <span
+                className={`text-xs font-medium ${isConnected ? "text-green-400" : "text-red-400"}`}
+              >
+                {isConnected
+                  ? "Servidor conectado"
+                  : "Conectando ao servidor..."}
               </span>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label htmlFor="nickname" className="block text-sm font-cinzel font-bold text-[#D4AF37] mb-2">
+                <label
+                  htmlFor="nickname"
+                  className="block text-sm font-cinzel font-bold text-[#D4AF37] mb-2"
+                >
                   Nickname
                 </label>
                 <input
@@ -131,7 +225,9 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
                   autoFocus
                   required
                 />
-                <p className="text-xs text-white/25 mt-1.5">{nickname.length}/20 caracteres</p>
+                <p className="text-xs text-white/25 mt-1.5">
+                  {nickname.length}/20 caracteres
+                </p>
               </div>
 
               <div>
@@ -139,15 +235,15 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
                   Classe
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {CLASS_ORDER.map(cls => (
+                  {CLASS_ORDER.map((cls) => (
                     <button
                       key={cls}
                       type="button"
                       onClick={() => setSelectedClass(cls)}
                       className={`p-2 rounded-lg border-2 text-center transition-all cursor-pointer group relative overflow-hidden ${
                         selectedClass === cls
-                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 shadow-[0_0_15px_rgba(212,175,55,0.3)] scale-[1.03]'
-                          : 'border-[#D4AF37]/15 bg-[#0A0E27]/40 hover:border-[#D4AF37]/40 hover:bg-[#1A3A52]/50'
+                          ? "border-[#D4AF37] bg-[#D4AF37]/10 shadow-[0_0_15px_rgba(212,175,55,0.3)] scale-[1.03]"
+                          : "border-[#D4AF37]/15 bg-[#0A0E27]/40 hover:border-[#D4AF37]/40 hover:bg-[#1A3A52]/50"
                       }`}
                     >
                       {selectedClass === cls && (
@@ -163,10 +259,14 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div className={`text-[11px] font-cinzel font-bold ${selectedClass === cls ? 'text-[#D4AF37]' : 'text-white/70'}`}>
+                        <div
+                          className={`text-[11px] font-cinzel font-bold ${selectedClass === cls ? "text-[#D4AF37]" : "text-white/70"}`}
+                        >
                           {CLASS_INFO[cls].label}
                         </div>
-                        <div className="text-[9px] text-white/35 leading-tight">{CLASS_INFO[cls].weapon}</div>
+                        <div className="text-[9px] text-white/35 leading-tight">
+                          {CLASS_INFO[cls].weapon}
+                        </div>
                       </div>
                     </button>
                   ))}
@@ -174,11 +274,21 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
                 {/* Mobile class preview */}
                 <div className="lg:hidden flex items-center gap-3 mt-3 p-3 rounded-lg bg-[#0A0E27]/40 border border-[#D4AF37]/20">
                   <div className="w-14 h-14 rounded-lg overflow-hidden border border-[#D4AF37]/30 flex-shrink-0">
-                    <Image src={CLASS_INFO[selectedClass].img} alt={CLASS_INFO[selectedClass].label} width={60} height={60} className="w-full h-full object-cover" />
+                    <Image
+                      src={CLASS_INFO[selectedClass].img}
+                      alt={CLASS_INFO[selectedClass].label}
+                      width={60}
+                      height={60}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
-                    <div className="font-cinzel font-bold text-[#D4AF37] text-sm">{CLASS_INFO[selectedClass].label}</div>
-                    <p className="text-[11px] text-white/40 italic">{CLASS_INFO[selectedClass].desc}</p>
+                    <div className="font-cinzel font-bold text-[#D4AF37] text-sm">
+                      {CLASS_INFO[selectedClass].label}
+                    </div>
+                    <p className="text-[11px] text-white/40 italic">
+                      {CLASS_INFO[selectedClass].desc}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -188,20 +298,22 @@ export default function NicknameScreen({ onStart }: NicknameScreenProps) {
                 disabled={!nickname.trim() || !isConnected}
                 className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border-2 border-[#FFD700] rounded-lg font-cinzel font-black text-[#0A0E27] tracking-wider transition-all hover:-translate-y-0.5 hover:shadow-[0_0_30px_rgba(212,175,55,0.5)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed uppercase animate-border-glow text-lg"
               >
-                {isConnected ? 'Iniciar Aventura' : 'Aguardando servidor...'}
+                {isConnected ? "Iniciar Aventura" : "Aguardando servidor..."}
               </button>
             </form>
 
             <div className="mt-6 pt-5 border-t-2 border-[#D4AF37]/15">
-              <p className="text-xs text-[#D4AF37]/50 font-cinzel font-bold mb-3 uppercase tracking-widest">Controles</p>
+              <p className="text-xs text-[#D4AF37]/50 font-cinzel font-bold mb-3 uppercase tracking-widest">
+                Controles
+              </p>
               <div className="grid grid-cols-2 gap-2 text-xs text-white/40">
                 {[
-                  { key: 'WASD', action: 'Mover' },
-                  { key: 'Mouse', action: 'Girar câmera' },
-                  { key: 'E', action: 'Interagir' },
-                  { key: 'Scroll', action: 'Zoom' },
-                  { key: 'I', action: 'Inventário' },
-                  { key: '2x Click', action: 'Reset câmera' },
+                  { key: "WASD", action: "Mover" },
+                  { key: "Mouse", action: "Girar câmera" },
+                  { key: "E", action: "Interagir" },
+                  { key: "Scroll", action: "Zoom" },
+                  { key: "I", action: "Inventário" },
+                  { key: "2x Click", action: "Reset câmera" },
                 ].map((ctrl, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <kbd className="px-1.5 py-0.5 bg-[#D4AF37]/10 border border-[#D4AF37]/25 rounded text-[10px] font-mono text-[#D4AF37]/70">
