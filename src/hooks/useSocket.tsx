@@ -24,10 +24,6 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
-let socketInstance: Socket | null = null;
-let socketInitialized = false;
-let pendingJoin: { nickname: string; characterClass: string } | null = null;
-
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -38,21 +34,9 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
   
   const [targetMonsterId, setTargetMonsterId] = useState<string | null>(null);
   const attackCooldownRef = useRef(false);
+  const pendingJoinRef = useRef<{ nickname: string; characterClass: string } | null>(null);
 
   useEffect(() => {
-    if (socketInstance && socketInitialized && socketInstance.connected) {
-      setSocket(socketInstance);
-      setIsConnected(socketInstance.connected);
-      return;
-    }
-
-    if (socketInstance && !socketInstance.connected) {
-      socketInstance.disconnect();
-      socketInstance = null;
-    }
-
-    socketInitialized = true;
-
     const newSocket = io({
       path: "/socket.io",
       transports: ["websocket", "polling"],
@@ -62,30 +46,29 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       reconnectionAttempts: 10,
       timeout: 20000,
     });
-    socketInstance = newSocket;
     setSocket(newSocket);
 
-    newSocket.on('connect', () => {
+    const handleConnect = () => {
       setIsConnected(true);
-      if (pendingJoin) {
-        newSocket.emit('join', pendingJoin);
-        pendingJoin = null;
+      if (pendingJoinRef.current) {
+        newSocket.emit('join', pendingJoinRef.current);
+        pendingJoinRef.current = null;
       }
-    });
+    };
 
-    newSocket.on('disconnect', () => {
+    const handleDisconnect = () => {
       setIsConnected(false);
-    });
+    };
 
-    newSocket.on('reconnect', () => {
+    const handleReconnect = () => {
       setIsConnected(true);
-      if (pendingJoin) {
-        newSocket.emit('join', pendingJoin);
-        pendingJoin = null;
+      if (pendingJoinRef.current) {
+        newSocket.emit('join', pendingJoinRef.current);
+        pendingJoinRef.current = null;
       }
-    });
+    };
 
-    newSocket.on('currentPlayers', (playersData: Record<string, Player>) => {
+    const handleCurrentPlayers = (playersData: Record<string, Player>) => {
       setPlayers(playersData);
       const socketId = newSocket.id;
       if (socketId && playersData[socketId]) {
@@ -97,30 +80,30 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
           }
         }, 100);
       }
-    });
+    };
 
-    newSocket.on('newPlayer', (player: Player) => {
+    const handleNewPlayer = (player: Player) => {
       setPlayers(prev => ({ ...prev, [player.id]: player }));
-    });
+    };
 
-    newSocket.on('playerMoved', (player: Player) => {
+    const handlePlayerMoved = (player: Player) => {
       if (player.id === newSocket.id) return;
       setPlayers(prev => ({ ...prev, [player.id]: player }));
-    });
+    };
 
-    newSocket.on('removePlayer', (playerId: string) => {
+    const handleRemovePlayer = (playerId: string) => {
       setPlayers(prev => {
         const newPlayers = { ...prev };
         delete newPlayers[playerId];
         return newPlayers;
       });
-    });
+    };
 
-    newSocket.on('chat', (message: ChatMessage) => {
+    const handleChat = (message: ChatMessage) => {
       setChatMessages(prev => [...prev, { ...message, timestamp: Date.now() }]);
-    });
+    };
 
-    newSocket.on('monstersUpdate', (monsterList: Monster[]) => {
+    const handleMonstersUpdate = (monsterList: Monster[]) => {
       useGameStore.getState().setMonstersData(monsterList);
 
       setMonsters(prev => {
@@ -134,9 +117,9 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         }
         return prev;
       });
-    });
+    };
 
-    newSocket.on('combatEvent', (event: CombatEvent) => {
+    const handleCombatEvent = (event: CombatEvent) => {
       const store = useGameStore.getState();
       store.pushCombatEvent({ ...event, _spawnTime: performance.now() });
 
@@ -144,55 +127,52 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         store.addAttackingPlayer(event.attackerId);
         setTimeout(() => useGameStore.getState().removeAttackingPlayer(event.attackerId), 400);
       }
-    });
+    };
 
-    newSocket.on('playerUpdated', (player: Player) => {
+    const handlePlayerUpdated = (player: Player) => {
       const socketId = newSocket.id;
       if (socketId && player.id === socketId) {
         setCurrentPlayer(player);
         setPlayers(prev => ({ ...prev, [player.id]: player }));
       }
-    });
+    };
+
+    newSocket.on('connect', handleConnect);
+    newSocket.on('disconnect', handleDisconnect);
+    newSocket.on('reconnect', handleReconnect);
+    newSocket.on('currentPlayers', handleCurrentPlayers);
+    newSocket.on('newPlayer', handleNewPlayer);
+    newSocket.on('playerMoved', handlePlayerMoved);
+    newSocket.on('removePlayer', handleRemovePlayer);
+    newSocket.on('chat', handleChat);
+    newSocket.on('monstersUpdate', handleMonstersUpdate);
+    newSocket.on('combatEvent', handleCombatEvent);
+    newSocket.on('playerUpdated', handlePlayerUpdated);
 
     return () => {
-      newSocket.off('connect');
-      newSocket.off('disconnect');
-      newSocket.off('reconnect');
-      newSocket.off('currentPlayers');
-      newSocket.off('newPlayer');
-      newSocket.off('playerMoved');
-      newSocket.off('removePlayer');
-      newSocket.off('chat');
-      newSocket.off('monstersUpdate');
-      newSocket.off('combatEvent');
-      newSocket.off('playerUpdated');
+      newSocket.off('connect', handleConnect);
+      newSocket.off('disconnect', handleDisconnect);
+      newSocket.off('reconnect', handleReconnect);
+      newSocket.off('currentPlayers', handleCurrentPlayers);
+      newSocket.off('newPlayer', handleNewPlayer);
+      newSocket.off('playerMoved', handlePlayerMoved);
+      newSocket.off('removePlayer', handleRemovePlayer);
+      newSocket.off('chat', handleChat);
+      newSocket.off('monstersUpdate', handleMonstersUpdate);
+      newSocket.off('combatEvent', handleCombatEvent);
+      newSocket.off('playerUpdated', handlePlayerUpdated);
+      newSocket.disconnect();
     };
   }, []);
 
-  const joinGame = (nickname: string, characterClass: string = 'knight') => {
+  const joinGame = useCallback((nickname: string, characterClass: string = 'knight') => {
     const joinData = { nickname, characterClass };
-    const tryJoin = () => {
-      if (socket && isConnected) {
-        socket.emit('join', joinData);
-        return true;
-      }
-      return false;
-    };
-
-    if (!tryJoin()) {
-      pendingJoin = joinData;
-      const retryInterval = setInterval(() => {
-        if (tryJoin()) {
-          clearInterval(retryInterval);
-          pendingJoin = null;
-        }
-      }, 500);
-      setTimeout(() => {
-        clearInterval(retryInterval);
-        if (pendingJoin?.nickname === nickname) pendingJoin = null;
-      }, 15000);
+    if (socket && isConnected) {
+      socket.emit('join', joinData);
+    } else {
+      pendingJoinRef.current = joinData;
     }
-  };
+  }, [socket, isConnected]);
 
   const socketRef = useRef(socket);
   socketRef.current = socket;
