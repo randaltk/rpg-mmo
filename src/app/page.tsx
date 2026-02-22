@@ -1,5 +1,5 @@
-import Link from "next/link";
 import Image from "next/image";
+import PlayLink from "@/components/ui/PlayLink";
 
 const FEATURES = [
   {
@@ -145,6 +145,20 @@ const NEWS = [
   },
 ];
 
+const ROADMAP_STAGES = [
+  { label: "Conceito", icon: "💡" },
+  { label: "Vertical Slice", icon: "🧩" },
+  { label: "Pré-Alpha", icon: "🔧" },
+  { label: "Alpha", icon: "🛡️" },
+  { label: "Closed Beta", icon: "🔒" },
+  { label: "Open Beta", icon: "🌐" },
+  { label: "Release Candidate", icon: "📜" },
+  { label: "Launch", icon: "🚀" },
+  { label: "Live Service", icon: "♾️" },
+];
+
+const CURRENT_STAGE = 0;
+
 function GoldDivider() {
   return (
     <div className="flex items-center justify-center gap-4 my-3">
@@ -198,6 +212,7 @@ export default function LandingPage() {
             { href: "#classes", label: "Classes" },
             { href: "#worlds", label: "Mundos" },
             { href: "#news", label: "Notícias" },
+            { href: "#roadmap", label: "Roadmap" },
           ].map((link) => (
             <a
               key={link.href}
@@ -209,12 +224,9 @@ export default function LandingPage() {
             </a>
           ))}
         </div>
-        <Link
-          href="/play"
-          className="px-5 py-2 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border border-[#D4AF37] text-[#0A0E27] font-cinzel font-bold text-sm rounded tracking-wide hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] hover:-translate-y-0.5 transition-all uppercase"
-        >
+        <PlayLink className="px-5 py-2 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border border-[#D4AF37] text-[#0A0E27] font-cinzel font-bold text-sm rounded tracking-wide hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] hover:-translate-y-0.5 transition-all uppercase">
           Entrar
-        </Link>
+        </PlayLink>
       </nav>
 
       {/* Hero Section */}
@@ -275,10 +287,7 @@ export default function LandingPage() {
           </p>
 
           {/* Play button */}
-          <Link
-            href="/play"
-            className="group relative px-12 py-4 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border-2 border-[#FFD700] text-[#0A0E27] font-cinzel font-black text-xl rounded-lg tracking-widest hover:shadow-[0_0_40px_rgba(212,175,55,0.6)] hover:-translate-y-1 transition-all uppercase animate-border-glow"
-          >
+          <PlayLink className="group relative px-12 py-4 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border-2 border-[#FFD700] text-[#0A0E27] font-cinzel font-black text-xl rounded-lg tracking-widest hover:shadow-[0_0_40px_rgba(212,175,55,0.6)] hover:-translate-y-1 transition-all uppercase animate-border-glow">
             <span className="flex items-center gap-3">
               Jogar Agora
               <svg
@@ -295,7 +304,7 @@ export default function LandingPage() {
                 />
               </svg>
             </span>
-          </Link>
+          </PlayLink>
 
           {/* Server status */}
           <div className="flex items-center gap-2 mt-6 px-4 py-2 rounded-full bg-[#1A3A52]/70 border border-[#D4AF37]/30 backdrop-blur-sm">
@@ -474,6 +483,105 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Roadmap Section */}
+      <section
+        id="roadmap"
+        className="relative z-10 px-6 lg:px-12 py-20 border-t border-[#D4AF37]/20"
+      >
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="font-cinzel text-3xl sm:text-4xl font-bold text-[#D4AF37] mb-2">
+              Roadmap de Desenvolvimento
+            </h2>
+            <GoldDivider />
+            <p className="text-white/60 max-w-xl mx-auto mt-4">
+              Acompanhe o progresso do jogo desde o conceito até o lançamento.
+            </p>
+          </div>
+
+          <div className="relative">
+            {/* Connecting line */}
+            <div className="absolute left-6 sm:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-[#D4AF37]/40 via-[#D4AF37]/20 to-[#D4AF37]/5 sm:-translate-x-px" />
+
+            <div className="space-y-6">
+              {ROADMAP_STAGES.map((stage, i) => {
+                const isCurrent = i === CURRENT_STAGE;
+                const isCompleted = i < CURRENT_STAGE;
+                const isFuture = i > CURRENT_STAGE;
+                const isEven = i % 2 === 0;
+
+                return (
+                  <div
+                    key={i}
+                    className={`relative flex items-center gap-4 sm:gap-0 ${
+                      isEven ? "sm:flex-row" : "sm:flex-row-reverse"
+                    }`}
+                  >
+                    {/* Card */}
+                    <div className={`flex-1 sm:w-[calc(50%-2rem)] ${isEven ? "sm:pr-10" : "sm:pl-10"}`}>
+                      <div
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          isCurrent
+                            ? "bg-[#D4AF37]/10 border-[#D4AF37] shadow-[0_0_25px_rgba(212,175,55,0.25)]"
+                            : isCompleted
+                              ? "bg-[#1A3A52]/60 border-[#D4AF37]/40"
+                              : "bg-[#1A3A52]/30 border-[#D4AF37]/10"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xl ${isFuture ? "opacity-30" : ""}`}>{stage.icon}</span>
+                          <div>
+                            <div className={`font-cinzel font-bold text-sm ${
+                              isCurrent ? "text-[#D4AF37]" : isCompleted ? "text-[#D4AF37]/70" : "text-white/25"
+                            }`}>
+                              {stage.label}
+                            </div>
+                            {isCurrent && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
+                                <span className="text-[10px] text-[#D4AF37]/80 font-bold uppercase tracking-widest">Estamos aqui</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Node on timeline */}
+                    <div className="absolute left-6 sm:left-1/2 -translate-x-1/2 flex-shrink-0 z-10">
+                      <div className={`w-4 h-4 rounded-full border-2 ${
+                        isCurrent
+                          ? "bg-[#D4AF37] border-[#FFD700] shadow-[0_0_12px_rgba(212,175,55,0.6)]"
+                          : isCompleted
+                            ? "bg-[#D4AF37]/60 border-[#D4AF37]/80"
+                            : "bg-[#0A0E27] border-[#D4AF37]/20"
+                      }`} />
+                    </div>
+
+                    {/* Spacer for the other side */}
+                    <div className="hidden sm:block flex-1 sm:w-[calc(50%-2rem)]" />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Progress bar label */}
+            <div className="mt-10 text-center">
+              <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-[#1A3A52]/60 border border-[#D4AF37]/30">
+                <span className="text-xs text-white/40 font-medium">Progresso</span>
+                <div className="w-32 h-2 bg-[#0A0E27] rounded-full border border-[#D4AF37]/20 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#FFD700]"
+                    style={{ width: `${((CURRENT_STAGE + 1) / ROADMAP_STAGES.length) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-[#D4AF37] font-cinzel font-bold">{CURRENT_STAGE + 1}/{ROADMAP_STAGES.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="relative z-10 px-6 lg:px-12 py-20 text-center border-t border-[#D4AF37]/20">
         <div className="max-w-3xl mx-auto relative">
@@ -486,10 +594,7 @@ export default function LandingPage() {
             Nenhum download necessário. Basta escolher um nickname e começar a
             jogar agora mesmo!
           </p>
-          <Link
-            href="/play"
-            className="relative inline-flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border-2 border-[#FFD700] text-[#0A0E27] font-cinzel font-black text-lg rounded-lg tracking-widest hover:shadow-[0_0_40px_rgba(212,175,55,0.6)] hover:-translate-y-1 transition-all uppercase animate-border-glow"
-          >
+          <PlayLink className="relative inline-flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] border-2 border-[#FFD700] text-[#0A0E27] font-cinzel font-black text-lg rounded-lg tracking-widest hover:shadow-[0_0_40px_rgba(212,175,55,0.6)] hover:-translate-y-1 transition-all uppercase animate-border-glow">
             Jogar Agora Gratuitamente
             <svg
               className="w-5 h-5"
@@ -504,7 +609,7 @@ export default function LandingPage() {
                 d="M13 7l5 5m0 0l-5 5m5-5H6"
               />
             </svg>
-          </Link>
+          </PlayLink>
         </div>
       </section>
 
