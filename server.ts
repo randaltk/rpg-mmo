@@ -68,6 +68,41 @@ const MONSTER_NAMES: Record<Monster["type"], string> = {
   skeleton: "Skeleton",
 };
 
+// --- Validation ---
+
+const VALID_CLASSES: ReadonlySet<string> = new Set<CharacterClass>([
+  "knight", "paladin", "rogue", "assassin", "ranger", "wizard", "sorcerer", "priest", "monk",
+]);
+
+const VALID_MAPS: ReadonlySet<string> = new Set(["castle", "town", "cave"]);
+
+const VALID_EQUIP_SLOTS: ReadonlySet<string> = new Set(["weapon", "armor", "accessory"]);
+
+const MAX_NICKNAME_LENGTH = 20;
+const MAX_CHAT_LENGTH = 200;
+const MAX_COORDINATE = 500;
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+
+function sanitizeString(s: string, maxLength: number): string {
+  return s.trim().slice(0, maxLength);
+}
+
+function isValidPosition(pos: unknown): pos is { x: number; y: number; z: number } {
+  if (!pos || typeof pos !== "object") return false;
+  const p = pos as Record<string, unknown>;
+  return isFiniteNumber(p.x) && isFiniteNumber(p.y) && isFiniteNumber(p.z)
+    && Math.abs(p.x as number) <= MAX_COORDINATE
+    && Math.abs(p.y as number) <= MAX_COORDINATE
+    && Math.abs(p.z as number) <= MAX_COORDINATE;
+}
+
 // --- Helpers ---
 
 function mapRoom(mapId: string): string {
@@ -342,7 +377,16 @@ function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
   io.on("connection", (socket: Socket) => {
     console.log("Player connected:", socket.id);
 
-    socket.on("join", ({ nickname, characterClass }: { nickname: string; characterClass?: string }) => {
+    socket.on("join", (data: unknown) => {
+      if (!data || typeof data !== "object") return;
+      const { nickname: rawNick, characterClass: rawClass } = data as Record<string, unknown>;
+
+      if (!isString(rawNick)) return;
+      const nickname = sanitizeString(rawNick, MAX_NICKNAME_LENGTH);
+      if (nickname.length === 0) return;
+      if (players[socket.id]) return;
+
+      const characterClass = (isString(rawClass) && VALID_CLASSES.has(rawClass) ? rawClass : "knight") as CharacterClass;
       const color = "#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0");
 
       const player: ServerPlayer = {
@@ -350,7 +394,7 @@ function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
         nickname,
         x: 0, y: 0, z: 0,
         color,
-        characterClass: (characterClass || "knight") as CharacterClass,
+        characterClass,
         currentMapId: DEFAULT_MAP,
         level: 1,
         hp: 100,
@@ -384,7 +428,11 @@ function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
       socket.emit("monstersUpdate", getMonstersOnMap(player.currentMapId));
     });
 
-    socket.on("changeMap", ({ mapId }: { mapId: string }) => {
+    socket.on("changeMap", (data: unknown) => {
+      if (!data || typeof data !== "object") return;
+      const { mapId } = data as Record<string, unknown>;
+      if (!isString(mapId) || !VALID_MAPS.has(mapId)) return;
+
       const player = players[socket.id];
       if (!player || player.currentMapId === mapId) return;
 
@@ -414,17 +462,22 @@ function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
       }
     });
 
-    socket.on("move", (pos: { x: number; y: number; z: number }) => {
+    socket.on("move", (pos: unknown) => {
+      if (!isValidPosition(pos)) return;
       const player = players[socket.id];
-      if (player) {
-        player.x = pos.x;
-        player.y = pos.y;
-        player.z = pos.z;
-        socket.to(mapRoom(player.currentMapId)).emit("playerMoved", player);
-      }
+      if (!player) return;
+
+      player.x = pos.x;
+      player.y = pos.y;
+      player.z = pos.z;
+      socket.to(mapRoom(player.currentMapId)).emit("playerMoved", player);
     });
 
-    socket.on("attackMonster", ({ monsterId }: { monsterId: string }) => {
+    socket.on("attackMonster", (data: unknown) => {
+      if (!data || typeof data !== "object") return;
+      const { monsterId } = data as Record<string, unknown>;
+      if (!isString(monsterId)) return;
+
       const player = players[socket.id];
       const monster = monsters[monsterId];
       if (!player || !monster || monster.state === "dead" || player.hp <= 0) return;
@@ -488,7 +541,12 @@ function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
       io.to(room).emit("monstersUpdate", getMonstersOnMap(monster.mapId));
     });
 
-    socket.on("chat", (msg: string) => {
+    socket.on("chat", (raw: unknown) => {
+      if (!isString(raw)) return;
+      const msg = sanitizeString(raw, MAX_CHAT_LENGTH);
+      if (msg.length === 0) return;
+      if (!players[socket.id]) return;
+
       io.emit("chat", { id: socket.id, msg, type: "normal" });
     });
 
@@ -496,15 +554,20 @@ function setupSocketIO(httpServer: ReturnType<typeof createServer>): Server {
       socket.emit("interactionResult", { success: true, message: "Interação realizada!" });
     });
 
-    socket.on("equipItem", ({ itemId, slot }: { itemId: string; slot: "weapon" | "armor" | "accessory" }) => {
+    socket.on("equipItem", (data: unknown) => {
+      if (!data || typeof data !== "object") return;
+      const { itemId, slot } = data as Record<string, unknown>;
+      if (!isString(itemId) || !isString(slot) || !VALID_EQUIP_SLOTS.has(slot)) return;
+
       const player = players[socket.id];
       if (!player) return;
 
+      const equipSlot = slot as "weapon" | "armor" | "accessory";
       const item = player.inventory.find((i: Item) => i.id === itemId);
       if (!item || (item.type !== "weapon" && item.type !== "armor" && item.type !== "accessory")) return;
 
       player.inventory = player.inventory.filter((i: Item) => i.id !== itemId);
-      player.equipped[slot] = item;
+      player.equipped[equipSlot] = item;
 
       if (item.stats.attack) player.attack += item.stats.attack;
       if (item.stats.defense) player.defense += item.stats.defense;

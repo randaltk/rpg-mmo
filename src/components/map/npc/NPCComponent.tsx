@@ -1,12 +1,12 @@
 'use client';
 
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box, Text, Sphere, Cylinder, Cone } from '@react-three/drei';
 import { NPC } from '@/types/game';
 import * as THREE from 'three';
 
-export function NPCComponent({ npc }: { npc: NPC }) {
+export const NPCComponent = memo(function NPCComponent({ npc }: { npc: NPC }) {
   const groupRef = useRef<THREE.Group>(null);
   const indicatorRef = useRef<THREE.Group>(null);
 
@@ -278,4 +278,4 @@ export function NPCComponent({ npc }: { npc: NPC }) {
       </mesh>
     </group>
   );
-}
+});

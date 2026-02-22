@@ -1,9 +1,10 @@
 'use client';
 
+import { memo } from 'react';
 import { Sphere } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 
-export function RockObject({ obj }: { obj: MapObject }) {
+export const RockObject = memo(function RockObject({ obj }: { obj: MapObject }) {
   return (
     <group position={[obj.x, obj.y, obj.z]}>
       <Sphere args={[obj.width * 0.55, 7, 5]} position={[0, obj.height * 0.35, 0]} scale={[1, 0.7, 0.9]}>
@@ -17,4 +18,4 @@ export function RockObject({ obj }: { obj: MapObject }) {
       </Sphere>
     </group>
   );
-}
+});

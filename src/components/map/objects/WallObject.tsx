@@ -1,9 +1,10 @@
 'use client';
 
+import { memo } from 'react';
 import { Box } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 
-export function WallObject({ obj }: { obj: MapObject }) {
+export const WallObject = memo(function WallObject({ obj }: { obj: MapObject }) {
   return (
     <group position={[obj.x, obj.y, obj.z]}>
       <Box args={[obj.width, obj.height, obj.depth]} position={[0, obj.height / 2, 0]}>
@@ -14,4 +15,4 @@ export function WallObject({ obj }: { obj: MapObject }) {
       </Box>
     </group>
   );
-}
+});

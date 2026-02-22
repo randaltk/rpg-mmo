@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text, Torus, Cylinder } from '@react-three/drei';
 import { MapObject } from '@/types/game';
@@ -12,7 +12,7 @@ const portalLabels: Record<string, string> = {
   castle: 'Castelo',
 };
 
-export function PortalObject({ obj }: { obj: MapObject }) {
+export const PortalObject = memo(function PortalObject({ obj }: { obj: MapObject }) {
   const ringRef = useRef<THREE.Mesh>(null);
   const innerRef = useRef<THREE.Mesh>(null);
 
@@ -54,4 +54,4 @@ export function PortalObject({ obj }: { obj: MapObject }) {
       </Text>
     </group>
   );
-}
+});

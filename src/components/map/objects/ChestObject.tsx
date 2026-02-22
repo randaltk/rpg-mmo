@@ -1,12 +1,12 @@
 'use client';
 
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box, Torus } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 import * as THREE from 'three';
 
-export function ChestObject({ obj }: { obj: MapObject }) {
+export const ChestObject = memo(function ChestObject({ obj }: { obj: MapObject }) {
   const glowRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
@@ -37,4 +37,4 @@ export function ChestObject({ obj }: { obj: MapObject }) {
       <pointLight position={[0, 0.6, 0]} color="#FFD700" intensity={0.4} distance={3} />
     </group>
   );
-}
+});

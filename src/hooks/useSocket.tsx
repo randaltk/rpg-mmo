@@ -154,7 +154,19 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    return () => {};
+    return () => {
+      newSocket.off('connect');
+      newSocket.off('disconnect');
+      newSocket.off('reconnect');
+      newSocket.off('currentPlayers');
+      newSocket.off('newPlayer');
+      newSocket.off('playerMoved');
+      newSocket.off('removePlayer');
+      newSocket.off('chat');
+      newSocket.off('monstersUpdate');
+      newSocket.off('combatEvent');
+      newSocket.off('playerUpdated');
+    };
   }, []);
 
   const joinGame = (nickname: string, characterClass: string = 'knight') => {

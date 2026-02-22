@@ -1,12 +1,12 @@
 'use client';
 
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 import * as THREE from 'three';
 
-export function ItemObject({ obj }: { obj: MapObject }) {
+export const ItemObject = memo(function ItemObject({ obj }: { obj: MapObject }) {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
@@ -30,4 +30,4 @@ export function ItemObject({ obj }: { obj: MapObject }) {
       </Text>
     </group>
   );
-}
+});

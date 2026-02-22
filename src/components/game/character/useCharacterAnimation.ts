@@ -2,7 +2,10 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Player } from "@/types/game";
 import { useGameStore } from "@/stores/gameStore";
+import { PerfMonitor } from "@/utils/perfMonitor";
 import * as THREE from "three";
+
+const charPerfLog = new PerfMonitor("PlayerChar useFrame");
 
 interface UseCharacterAnimationConfig {
   player: Player;
@@ -33,8 +36,6 @@ export function useCharacterAnimation({
   const isAttackingRef = useRef(false);
   const breathCycle = useRef(Math.random() * Math.PI * 2);
 
-  const frameTimesRef = useRef<number[]>([]);
-  const lastPerfLog = useRef(0);
 
   useFrame((state, delta) => {
     const frameStart = performance.now();
@@ -184,17 +185,7 @@ export function useCharacterAnimation({
     }
 
     if (isCurrentPlayer) {
-      const frameMs = performance.now() - frameStart;
-      frameTimesRef.current.push(frameMs);
-      const now = performance.now();
-      if (now - lastPerfLog.current > 3000) {
-        lastPerfLog.current = now;
-        const times = frameTimesRef.current;
-        const avg = times.reduce((a, b) => a + b, 0) / times.length;
-        const max = Math.max(...times);
-        console.log(`[PERF PlayerChar useFrame] avg: ${avg.toFixed(3)}ms | max: ${max.toFixed(3)}ms | calls/3s: ${times.length}`);
-        frameTimesRef.current = [];
-      }
+      charPerfLog.tick(performance.now() - frameStart);
     }
   });
 

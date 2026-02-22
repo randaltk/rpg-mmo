@@ -65,7 +65,7 @@ export interface MapObject {
   portalSpawn?: { x: number; y: number; z: number }; // Posição de spawn no mapa de destino
 }
 
-export interface Map {
+export interface GameMap {
   id: string;
   name: string;
   width: number;
@@ -81,9 +81,9 @@ export interface GameState {
   currentPlayer: Player | null;
   isConnected: boolean;
   isLoggedIn: boolean;
-  currentMap: Map;
-  availableMaps: Map[];
-  allMaps: Record<string, Map>; // Todos os mapas disponíveis
+  currentMap: GameMap;
+  availableMaps: GameMap[];
+  allMaps: Record<string, GameMap>;
 }
 
 export interface ChatMessage {

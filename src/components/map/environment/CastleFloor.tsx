@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Box, Sphere, Cylinder } from '@react-three/drei';
 import * as THREE from 'three';
 
-export function CastleFloor({ width, height }: { width: number; height: number }) {
+export const CastleFloor = memo(function CastleFloor({ width, height }: { width: number; height: number }) {
   const torches = useMemo(() => {
     const list = [];
     for (let z = -12; z <= 12; z += 6) {
@@ -113,4 +113,4 @@ export function CastleFloor({ width, height }: { width: number; height: number }
       </Box>
     </>
   );
-}
+});

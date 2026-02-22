@@ -10,33 +10,13 @@ import MonsterCharacter from "./MonsterCharacter";
 import DamageNumber from "./DamageNumber";
 import FollowCamera from "./FollowCamera";
 import FloatingParticles from "./FloatingParticles";
-import MapSystem from "../map/MapSystem";
+import MapSystem from "@/components/map/MapSystem";
 import { useGameStore } from "@/stores/gameStore";
 import * as THREE from "three";
 
-const perfLog = {
-  renderCount: 0,
-  lastLogTime: 0,
-  frameTimes: [] as number[],
-  reasons: {} as Record<string, number>,
-  log(reason: string) {
-    this.reasons[reason] = (this.reasons[reason] || 0) + 1;
-  },
-  tick() {
-    this.renderCount++;
-    this.frameTimes.push(performance.now());
-    const now = performance.now();
-    if (now - this.lastLogTime > 3000) {
-      this.lastLogTime = now;
-      const recent = this.frameTimes.filter(t => now - t < 3000);
-      this.frameTimes = recent;
-      const fps = recent.length / 3;
-      console.log(`[PERF] Renders/3s: ${this.renderCount} | ~FPS(render): ${fps.toFixed(1)} | Reasons:`, { ...this.reasons });
-      this.renderCount = 0;
-      this.reasons = {};
-    }
-  },
-};
+import { PerfMonitor } from "@/utils/perfMonitor";
+
+const perfLog = new PerfMonitor("GameScene");
 
 const SkyDome = memo(function SkyDome({ isCave }: { isCave: boolean }) {
   const matRef = useRef<THREE.ShaderMaterial>(null);
@@ -319,8 +299,8 @@ export default function GameScene({
 
   const prevMonsters = useRef(monsters);
   const prevPlayers = useRef(players);
-  if (monsters !== prevMonsters.current) { perfLog.log("monsters"); prevMonsters.current = monsters; }
-  if (players !== prevPlayers.current) { perfLog.log("players"); prevPlayers.current = players; }
+  if (monsters !== prevMonsters.current) { perfLog.reason("monsters"); prevMonsters.current = monsters; }
+  if (players !== prevPlayers.current) { perfLog.reason("players"); prevPlayers.current = players; }
   perfLog.tick();
 
   const { currentMap } = useGameControls({

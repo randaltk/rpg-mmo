@@ -1,9 +1,10 @@
 'use client';
 
+import { memo } from 'react';
 import { Sphere, Cylinder } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 
-export function TreeObject({ obj }: { obj: MapObject }) {
+export const TreeObject = memo(function TreeObject({ obj }: { obj: MapObject }) {
   const h = obj.height;
   return (
     <group position={[obj.x, obj.y, obj.z]}>
@@ -38,4 +39,4 @@ export function TreeObject({ obj }: { obj: MapObject }) {
       </Sphere>
     </group>
   );
-}
+});

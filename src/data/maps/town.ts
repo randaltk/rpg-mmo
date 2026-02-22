@@ -1,4 +1,4 @@
-import { Map, MapObject, MonsterSpawn } from "@/types/game";
+import { GameMap, MapObject, MonsterSpawn } from "@/types/game";
 import { seededRandom } from "@/utils/seededRandom";
 import { MONSTER_SPAWNS } from "@/shared/monsterSpawns";
 
@@ -35,7 +35,7 @@ function generateRocks(): MapObject[] {
   return rocks;
 }
 
-export const townMap: Map = {
+export const townMap: GameMap = {
   id: "town",
   name: "Planícies de Aldoria",
   width: 150,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useRef } from "react";
-import { Map } from "@/types/game";
+import { GameMap } from "@/types/game";
 import { allMaps } from "@/data/maps";
 import { useGameStore } from "@/stores/gameStore";
 
@@ -22,7 +22,7 @@ export function useGameControls({
   onInventoryToggle,
   onInteractionMessage,
 }: UseGameControlsProps) {
-  const [currentMap, setCurrentMap] = useState<Map>(allMaps.castle);
+  const [currentMap, setCurrentMap] = useState<GameMap>(allMaps.castle);
   const currentMapRef = useRef(currentMap);
   currentMapRef.current = currentMap;
 

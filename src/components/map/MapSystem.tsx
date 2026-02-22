@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Map } from '@/types/game';
+import { GameMap } from '@/types/game';
 import { useGameStore } from '@/stores/gameStore';
 import { MapObjectComponent } from './objects/MapObjectComponent';
 import { NPCComponent } from './npc/NPCComponent';
 import { Ground } from './Ground';
 
 interface MapSystemProps {
-  currentMap: Map;
+  currentMap: GameMap;
 }
 
 export default function MapSystem({ currentMap }: MapSystemProps) {

@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Box, Sphere, Cylinder } from '@react-three/drei';
 import { seededRandom } from '@/utils/seededRandom';
 import { Mountains } from './environment/Mountains';
 import { CastleFloor } from './environment/CastleFloor';
 
-export function Ground({ mapId, width, height }: { mapId: string; width: number; height: number }) {
+export const Ground = memo(function Ground({ mapId, width, height }: { mapId: string; width: number; height: number }) {
   const isCave = mapId === 'cave';
   const isCastle = mapId === 'castle';
   const isTown = mapId === 'town';
@@ -105,4 +105,4 @@ export function Ground({ mapId, width, height }: { mapId: string; width: number;
       ))}
     </>
   );
-}
+});

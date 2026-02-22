@@ -13,25 +13,9 @@ interface MonsterCharacterProps {
   onClick: (monsterId: string) => void;
 }
 
-const monsterPerfLog = {
-  frameTimes: [] as number[],
-  lastLog: 0,
-  tick(ms: number) {
-    this.frameTimes.push(ms);
-    const now = performance.now();
-    if (now - this.lastLog > 3000) {
-      this.lastLog = now;
-      const times = this.frameTimes;
-      if (times.length > 0) {
-        const avg = times.reduce((a, b) => a + b, 0) / times.length;
-        const max = Math.max(...times);
-        const count = times.length;
-        console.log(`[PERF Monsters useFrame] total calls/3s: ${count} | avg: ${avg.toFixed(3)}ms | max: ${max.toFixed(3)}ms`);
-      }
-      this.frameTimes = [];
-    }
-  }
-};
+import { PerfMonitor } from "@/utils/perfMonitor";
+
+const monsterPerfLog = new PerfMonitor("Monsters useFrame");
 
 function createSlimeBodyGeometry(): THREE.LatheGeometry {
   const points: THREE.Vector2[] = [];

@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Cone } from '@react-three/drei';
 import { seededRandom } from '@/utils/seededRandom';
 
-export function Mountains() {
+export const Mountains = memo(function Mountains() {
   const mountains = useMemo(() => {
     const data = [];
     const count = 28;
@@ -41,4 +41,4 @@ export function Mountains() {
       })}
     </group>
   );
-}
+});

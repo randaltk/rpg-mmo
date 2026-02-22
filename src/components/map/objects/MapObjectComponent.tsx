@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Box } from '@react-three/drei';
 import { MapObject } from '@/types/game';
 import { TreeObject } from './TreeObject';
@@ -9,7 +10,7 @@ import { ChestObject } from './ChestObject';
 import { ItemObject } from './ItemObject';
 import { PortalObject } from './PortalObject';
 
-export function MapObjectComponent({ obj }: { obj: MapObject }) {
+export const MapObjectComponent = memo(function MapObjectComponent({ obj }: { obj: MapObject }) {
   switch (obj.type) {
     case 'tree': return <TreeObject obj={obj} />;
     case 'rock': return <RockObject obj={obj} />;
@@ -24,4 +25,4 @@ export function MapObjectComponent({ obj }: { obj: MapObject }) {
         </Box>
       );
   }
-}
+});

@@ -1,6 +1,6 @@
-import { Map } from "@/types/game";
+import { GameMap } from "@/types/game";
 
-export const castleMap: Map = {
+export const castleMap: GameMap = {
   id: "castle",
   name: "Salão do Castelo",
   width: 24,

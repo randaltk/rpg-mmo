@@ -7,6 +7,7 @@ import PlayersList from '@/components/ui/PlayersList';
 import Inventory from '@/components/ui/Inventory';
 import TargetInfo from '@/components/ui/TargetInfo';
 import PlayerHUD from '@/components/ui/PlayerHUD';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useSocket } from '@/hooks/useSocket';
 
 export default function GameScreen() {
@@ -23,37 +24,39 @@ export default function GameScreen() {
   };
 
   return (
-    <div className="game-container">
-      <Game3D
-        inventoryOpen={inventoryOpen}
-        onInventoryToggle={() => setInventoryOpen(!inventoryOpen)}
-        interactionMessage={interactionMessage}
-        onInteractionMessage={setInteractionMessage}
-      />
-
-      <div className="game-ui">
-        <PlayersList />
-        <Chat />
-      </div>
-
-      <TargetInfo />
-      <PlayerHUD />
-
-      {interactionMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-[#0A0E27]/90 backdrop-blur-sm text-[#D4AF37] px-6 py-3 rounded-lg z-50 border-2 border-[#D4AF37]/50 text-sm font-cinzel font-bold shadow-[0_0_20px_rgba(212,175,55,0.3)]">
-          {interactionMessage}
-        </div>
-      )}
-
-      {currentPlayer && (
-        <Inventory
-          player={currentPlayer}
-          onEquipItem={handleEquipItem}
-          onUseItem={handleUseItem}
-          isOpen={inventoryOpen}
-          onClose={() => setInventoryOpen(false)}
+    <ErrorBoundary>
+      <div className="game-container">
+        <Game3D
+          inventoryOpen={inventoryOpen}
+          onInventoryToggle={() => setInventoryOpen(!inventoryOpen)}
+          interactionMessage={interactionMessage}
+          onInteractionMessage={setInteractionMessage}
         />
-      )}
-    </div>
+
+        <div className="game-ui">
+          <PlayersList />
+          <Chat />
+        </div>
+
+        <TargetInfo />
+        <PlayerHUD />
+
+        {interactionMessage && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-[#0A0E27]/90 backdrop-blur-sm text-[#D4AF37] px-6 py-3 rounded-lg z-50 border-2 border-[#D4AF37]/50 text-sm font-cinzel font-bold shadow-[0_0_20px_rgba(212,175,55,0.3)]">
+            {interactionMessage}
+          </div>
+        )}
+
+        {currentPlayer && (
+          <Inventory
+            player={currentPlayer}
+            onEquipItem={handleEquipItem}
+            onUseItem={handleUseItem}
+            isOpen={inventoryOpen}
+            onClose={() => setInventoryOpen(false)}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
